@@ -1,27 +1,27 @@
 package com.doacoes.model;
 
+import com.doacoes.enums.CategoriaItem;
+
 public class TipoDoacao {
 
-    private Integer id;
+    private Long id;
     private String nome;
+    private CategoriaItem categoria;
 
     public TipoDoacao() {
     }
 
-    public TipoDoacao(String nome) {
-        this.nome = nome;
-    }
-
-    public TipoDoacao(Integer id, String nome) {
+    public TipoDoacao(Long id, String nome, CategoriaItem categoria) {
         this.id = id;
         this.nome = nome;
+        this.categoria = categoria;
     }
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -33,11 +33,19 @@ public class TipoDoacao {
         this.nome = nome;
     }
 
+    public CategoriaItem getCategoria() {
+        return categoria;
+    }
+
+    public void setCategoria(CategoriaItem categoria) {
+        this.categoria = categoria;
+    }
+
     @Override
     public String toString() {
         return "TipoDoacao{" +
                 "id=" + id +
                 ", nome='" + nome + '\'' +
+                ", categoria=" + categoria +
                 '}';
-    }
-}
+    }}

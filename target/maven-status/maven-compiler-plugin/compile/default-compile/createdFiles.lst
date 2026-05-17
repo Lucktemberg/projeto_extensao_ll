@@ -1,4 +1,4 @@
-com/doacoes/model/TipoDoacao.class
-com/doacoes/dao/TipoDoacaoDAO.class
-com/doacoes/connection/ConnectionFactory.class
-com/doacoes/App.class
+com\doacoes\connection\ConnectionFactory.class
+com\doacoes\App.class
+com\doacoes\model\TipoDoacao.class
+com\doacoes\dao\TipoDoacaoDAO.class

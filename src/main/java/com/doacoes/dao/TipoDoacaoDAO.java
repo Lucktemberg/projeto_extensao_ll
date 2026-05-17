@@ -1,61 +1,32 @@
 package com.doacoes.dao;
 
 import com.doacoes.connection.ConnectionFactory;
+import com.doacoes.enums.CategoriaItem;
 import com.doacoes.model.TipoDoacao;
+import org.jetbrains.annotations.NotNull;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class TipoDoacaoDAO {
 
-    public void criarTabela() {
+    public void salvar(@NotNull TipoDoacao tipoDoacao) {
 
-        String sql = """
-                CREATE TABLE IF NOT EXISTS tipo_doacao (
-                    id SERIAL PRIMARY KEY,
-                    nome VARCHAR(100) NOT NULL
-                )
-                """;
+        String sql = "INSERT INTO tipo_doacao(nome, categoria) VALUES (?, ?)";
 
         try (
-                Connection conn = ConnectionFactory.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)
+                Connection connection = ConnectionFactory.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
         ) {
 
-            stmt.execute();
+            statement.setString(1, tipoDoacao.getNome());
+            statement.setString(2, tipoDoacao.getCategoria().name());
 
-            System.out.println("Tabela tipo_doacao criada com sucesso!");
+            statement.executeUpdate();
 
-        } catch (Exception e) {
-
-            e.printStackTrace();
-        }
-    }
-
-    public void salvar(TipoDoacao tipo) {
-
-        String sql = """
-                INSERT INTO tipo_doacao(nome)
-                VALUES (?)
-                """;
-
-        try (
-                Connection conn = ConnectionFactory.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)
-        ) {
-
-            stmt.setString(1, tipo.getNome());
-
-            stmt.executeUpdate();
-
-            System.out.println("Tipo de doação salvo!");
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -63,32 +34,106 @@ public class TipoDoacaoDAO {
 
         List<TipoDoacao> lista = new ArrayList<>();
 
-        String sql = """
-                SELECT * FROM tipo_doacao
-                ORDER BY id
-                """;
+        String sql = "SELECT * FROM tipo_doacao";
 
         try (
-                Connection conn = ConnectionFactory.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql);
-                ResultSet rs = stmt.executeQuery()
+                Connection connection = ConnectionFactory.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()
         ) {
 
-            while (rs.next()) {
+            while (resultSet.next()) {
 
                 TipoDoacao tipo = new TipoDoacao();
 
-                tipo.setId(rs.getInt("id"));
-                tipo.setNome(rs.getString("nome"));
+                tipo.setId(resultSet.getLong("id"));
+                tipo.setNome(resultSet.getString("nome"));
+                tipo.setCategoria(
+                        CategoriaItem.valueOf(resultSet.getString("categoria"))
+                );
 
                 lista.add(tipo);
             }
 
-        } catch (Exception e) {
-
-            e.printStackTrace();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
 
         return lista;
+    }
+
+    public TipoDoacao buscarPorId(Long id) {
+
+        String sql = "SELECT * FROM tipo_doacao WHERE id = ?";
+
+        try (
+                Connection connection = ConnectionFactory.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+
+            statement.setLong(1, id);
+
+            ResultSet resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+
+                TipoDoacao tipo = new TipoDoacao();
+
+                tipo.setId(resultSet.getLong("id"));
+                tipo.setNome(resultSet.getString("nome"));
+                tipo.setCategoria(
+                        CategoriaItem.valueOf(resultSet.getString("categoria"))
+                );
+
+                return tipo;
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+        return null;
+    }
+
+    public void atualizar(TipoDoacao tipoDoacao) {
+
+        String sql = """
+                UPDATE tipo_doacao
+                SET nome = ?, categoria = ?
+                WHERE id = ?
+                """;
+
+        try (
+                Connection connection = ConnectionFactory.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+
+            statement.setString(1, tipoDoacao.getNome());
+            statement.setString(2, tipoDoacao.getCategoria().name());
+            statement.setLong(3, tipoDoacao.getId());
+
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void deletar(Long id) {
+
+        String sql = "DELETE FROM tipo_doacao WHERE id = ?";
+
+        try (
+                Connection connection = ConnectionFactory.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+
+            statement.setLong(1, id);
+
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
