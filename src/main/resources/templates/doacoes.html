@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Doações</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Cadastro de Doações</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Doações cadastradas</h2>
+            <p class="descricao">Registre as doações recebidas e acompanhe os itens doados.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Nova Doação</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Nova Doação</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+
+            <div>
+                <label>Doador</label>
+                <select id="idDoador">
+                    <option value="">Selecione um doador</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Categoria</label>
+                <select id="categoria" onchange="controlarCamposCategoria(true)">
+                    <option value="">Selecione uma categoria</option>
+                    <option value="ALIMENTOS">ALIMENTOS</option>
+                    <option value="VESTUARIO">VESTUÁRIO</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Tipo de Doação</label>
+                <input
+                        type="text"
+                        id="descricaoItem"
+                        list="listaTiposDoacao"
+                        placeholder="Selecione primeiro uma categoria"
+                >
+                <datalist id="listaTiposDoacao"></datalist>
+            </div>
+
+            <div>
+                <label>Quantidade</label>
+                <input type="number" id="quantidade" placeholder="Quantidade" min="1">
+            </div>
+
+            <div id="campoTamanho">
+                <label>Tamanho</label>
+                <select id="tamanho">
+                    <option value="">Selecione o tamanho</option>
+                    <option value="PP">PP</option>
+                    <option value="P">P</option>
+                    <option value="M">M</option>
+                    <option value="G">G</option>
+                    <option value="GG">GG</option>
+                    <option value="XG">XG</option>
+                    <option value="INFANTIL">INFANTIL</option>
+                </select>
+            </div>
+
+            <div id="campoUnidade">
+                <label>Unidade</label>
+                <select id="unidade">
+                    <option value="">Selecione a unidade</option>
+                    <option value="UN">UN</option>
+                    <option value="KG">KG</option>
+                    <option value="PACOTE">PACOTE</option>
+                    <option value="CAIXA">CAIXA</option>
+                    <option value="LITRO">LITRO</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Data da Doação</label>
+                <input type="date" id="dataDoacao">
+            </div>
+
+            <div id="campoDetalheUnidade">
+                <label>Detalhe da Unidade</label>
+                <input type="text" id="detalheUnidade" placeholder="Ex: 5kg, pacote fechado">
+            </div>
+
+            <div class="campo-completo">
+                <label>Observação</label>
+                <textarea id="observacao" placeholder="Observações"></textarea>
+            </div>
+
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Doador</th>
+                <th>Item</th>
+                <th>Categoria</th>
+                <th>Quantidade</th>
+                <th>Data</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaDoacoes">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
+    let tiposDoacao = [];
+
+    if (!usuario) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuario.nome + " • " + usuario.perfil;
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function dataHoje() {
+        return new Date().toISOString().substring(0, 10);
+    }
+
+    function formatarData(data) {
+        if (!data) {
+            return "";
+        }
+
+        const somenteData = String(data).substring(0, 10);
+
+        if (somenteData.includes("-")) {
+            const partes = somenteData.split("-");
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        return data;
+    }
+
+    function normalizarTexto(texto) {
+        return String(texto ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase()
+            .trim();
+    }
+
+    function carregarTiposDoacao() {
+        return fetch("/tipos-doacao")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar tipos de doação.");
+                }
+
+                return response.json();
+            })
+            .then(tipos => {
+                tiposDoacao = tipos;
+            })
+            .catch(error => {
+                alert("Erro ao carregar tipos de doação: " + error.message);
+            });
+    }
+
+    function carregarTiposPorCategoria(limparCampo = true) {
+        const categoria = normalizarTexto(document.getElementById("categoria").value);
+        const lista = document.getElementById("listaTiposDoacao");
+        const campoDescricao = document.getElementById("descricaoItem");
+
+        lista.innerHTML = "";
+
+        if (limparCampo) {
+            campoDescricao.value = "";
+        }
+
+        if (!categoria) {
+            campoDescricao.placeholder = "Selecione primeiro uma categoria";
+            return;
+        }
+
+        const tiposFiltrados = tiposDoacao.filter(tipo =>
+            normalizarTexto(tipo.categoria) === categoria
+        );
+
+        if (tiposFiltrados.length === 0) {
+            campoDescricao.placeholder = "Nenhum tipo cadastrado para esta categoria";
+            return;
+        }
+
+        campoDescricao.placeholder = "Digite para pesquisar o tipo de doação";
+
+        tiposFiltrados.forEach(tipo => {
+            lista.innerHTML += `
+                <option value="${tipo.nome}">
+            `;
+        });
+    }
+
+    function controlarCamposCategoria(limparTipo = true) {
+        const categoria = document.getElementById("categoria").value;
+
+        const campoTamanho = document.getElementById("campoTamanho");
+        const campoUnidade = document.getElementById("campoUnidade");
+        const campoDetalheUnidade = document.getElementById("campoDetalheUnidade");
+
+        if (categoria === "VESTUARIO") {
+            campoTamanho.style.display = "block";
+            campoUnidade.style.display = "none";
+            campoDetalheUnidade.style.display = "none";
+
+            document.getElementById("unidade").value = "";
+            document.getElementById("detalheUnidade").value = "";
+        } else if (categoria === "ALIMENTOS") {
+            campoTamanho.style.display = "none";
+            campoUnidade.style.display = "block";
+            campoDetalheUnidade.style.display = "block";
+
+            document.getElementById("tamanho").value = "";
+        } else {
+            campoTamanho.style.display = "none";
+            campoUnidade.style.display = "none";
+            campoDetalheUnidade.style.display = "none";
+
+            document.getElementById("tamanho").value = "";
+            document.getElementById("unidade").value = "";
+            document.getElementById("detalheUnidade").value = "";
+        }
+
+        carregarTiposPorCategoria(limparTipo);
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("dataDoacao").value = dataHoje();
+        document.getElementById("tituloFormulario").innerText = "Nova Doação";
+        document.getElementById("formulario").style.display = "block";
+        controlarCamposCategoria(true);
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("idDoador").value = "";
+        document.getElementById("descricaoItem").value = "";
+        document.getElementById("quantidade").value = "";
+        document.getElementById("categoria").value = "";
+        document.getElementById("dataDoacao").value = "";
+        document.getElementById("tamanho").value = "";
+        document.getElementById("unidade").value = "";
+        document.getElementById("detalheUnidade").value = "";
+        document.getElementById("observacao").value = "";
+        controlarCamposCategoria(true);
+    }
+
+    function carregarDoadores() {
+        return fetch("/doadores")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar doadores.");
+                }
+
+                return response.json();
+            })
+            .then(doadores => {
+                const combo = document.getElementById("idDoador");
+                combo.innerHTML = '<option value="">Selecione um doador</option>';
+
+                doadores.forEach(doador => {
+                    combo.innerHTML += `
+                        <option value="${doador.id}" data-nome="${doador.nome}">
+                            ${doador.nome}
+                        </option>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar doadores: " + error.message);
+            });
+    }
+
+    function carregarDoacoes() {
+        fetch("/doacoes")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar doações.");
+                }
+
+                return response.json();
+            })
+            .then(doacoes => {
+                const tabela = document.getElementById("tabelaDoacoes");
+                tabela.innerHTML = "";
+
+                doacoes.forEach(doacao => {
+                    const nomeDoador =
+                        doacao.nomeDoador ??
+                        doacao.nome_doador ??
+                        doacao.doador?.nome ??
+                        "";
+
+                    const descricaoItem =
+                        doacao.descricaoItem ??
+                        doacao.descricao_item ??
+                        doacao.descricao ??
+                        "";
+
+                    const dataDoacao =
+                        doacao.dataDoacao ??
+                        doacao.data_doacao ??
+                        doacao.data ??
+                        "";
+
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${doacao.id}</td>
+                            <td>${nomeDoador}</td>
+                            <td>${descricaoItem}</td>
+                            <td>${doacao.categoria ?? ""}</td>
+                            <td>${doacao.quantidade ?? 0}</td>
+                            <td>${formatarData(dataDoacao)}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${doacao.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${doacao.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar doações: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+
+        const doadorSelect = document.getElementById("idDoador");
+        const doadorId = Number(doadorSelect.value);
+        const nomeDoador =
+            doadorSelect.options[doadorSelect.selectedIndex]?.dataset.nome ??
+            doadorSelect.options[doadorSelect.selectedIndex]?.text.trim();
+
+        const categoria = document.getElementById("categoria").value;
+        const descricaoItem = document.getElementById("descricaoItem").value;
+        const quantidade = Number(document.getElementById("quantidade").value);
+        const dataDoacao = document.getElementById("dataDoacao").value;
+
+        if (!doadorId) {
+            alert("Selecione um doador.");
+            return;
+        }
+
+        if (!categoria) {
+            alert("Selecione a categoria da doação.");
+            return;
+        }
+
+        if (!descricaoItem || descricaoItem.trim() === "") {
+            alert("Informe o tipo de doação.");
+            return;
+        }
+
+        if (!quantidade || quantidade <= 0) {
+            alert("Informe uma quantidade válida.");
+            return;
+        }
+
+        if (!dataDoacao) {
+            alert("Informe a data da doação.");
+            return;
+        }
+
+        if (categoria === "VESTUARIO" && !document.getElementById("tamanho").value) {
+            alert("Informe o tamanho do vestuário.");
+            return;
+        }
+
+        let unidade = document.getElementById("unidade").value;
+        let detalheUnidade = document.getElementById("detalheUnidade").value;
+        let tamanho = document.getElementById("tamanho").value;
+
+        if (categoria === "VESTUARIO") {
+            unidade = "UN";
+            detalheUnidade = "";
+        }
+
+        if (categoria === "ALIMENTOS" && !unidade) {
+            alert("Informe a unidade do alimento.");
+            return;
+        }
+
+        const doacao = {
+            doadorId: doadorId,
+            idDoador: doadorId,
+            nomeDoador: nomeDoador,
+            descricaoItem: descricaoItem.trim(),
+            quantidade: quantidade,
+            categoria: categoria,
+            dataDoacao: dataDoacao,
+            data: dataDoacao,
+            tamanho: tamanho,
+            unidade: unidade,
+            detalheUnidade: detalheUnidade,
+            observacao: document.getElementById("observacao").value
+        };
+
+        const url = id ? `/doacoes/${id}` : "/doacoes";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(doacao)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar doação.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+                carregarDoacoes();
+            })
+            .catch(error => {
+                alert("Erro ao salvar doação: " + error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/doacoes/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar doação.");
+                }
+
+                return response.json();
+            })
+            .then(doacao => {
+                const idDoador =
+                    doacao.doadorId ??
+                    doacao.idDoador ??
+                    doacao.id_doador ??
+                    doacao.doador?.id ??
+                    "";
+
+                const descricaoItem =
+                    doacao.descricaoItem ??
+                    doacao.descricao_item ??
+                    doacao.descricao ??
+                    "";
+
+                const dataDoacao =
+                    doacao.dataDoacao ??
+                    doacao.data_doacao ??
+                    doacao.data ??
+                    "";
+
+                const detalheUnidade =
+                    doacao.detalheUnidade ??
+                    doacao.detalhe_unidade ??
+                    "";
+
+                document.getElementById("id").value = doacao.id;
+                document.getElementById("idDoador").value = idDoador;
+                document.getElementById("categoria").value = doacao.categoria ?? "";
+                controlarCamposCategoria(false);
+
+                document.getElementById("descricaoItem").value = descricaoItem;
+                document.getElementById("quantidade").value = doacao.quantidade ?? "";
+                document.getElementById("dataDoacao").value = String(dataDoacao).substring(0, 10);
+                document.getElementById("tamanho").value = doacao.tamanho ?? "";
+                document.getElementById("unidade").value = doacao.unidade ?? "";
+                document.getElementById("detalheUnidade").value = detalheUnidade;
+                document.getElementById("observacao").value = doacao.observacao ?? "";
+
+                document.getElementById("tituloFormulario").innerText = "Editar Doação";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar doação: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir esta doação?")) {
+            return;
+        }
+
+        fetch(`/doacoes/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir a doação.");
+                }
+
+                carregarDoacoes();
+            })
+            .catch(error => {
+                alert("Erro ao excluir doação: " + error.message);
+            });
+    }
+
+    Promise.all([
+        carregarDoadores(),
+        carregarTiposDoacao()
+    ]).then(() => {
+        controlarCamposCategoria(true);
+        carregarDoacoes();
+    });
+</script>
+
+</body>
+</html>

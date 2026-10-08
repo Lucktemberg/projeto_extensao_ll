@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Usuários</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Cadastro de Usuários e Permissões</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Usuários cadastrados</h2>
+            <p class="descricao">Cadastre usuários, defina perfis e libere os módulos do sistema.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Novo Usuário</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Novo Usuário</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+
+            <div>
+                <label>Nome</label>
+                <input type="text" id="nome" placeholder="Nome do usuário">
+            </div>
+
+            <div>
+                <label>Login</label>
+                <input type="text" id="login" placeholder="Login de acesso">
+            </div>
+
+            <div>
+                <label>Senha</label>
+                <input type="password" id="senha" placeholder="Senha do usuário">
+            </div>
+
+            <div>
+                <label>Perfil</label>
+                <select id="perfil" onchange="controlarPermissoes()">
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="USUARIO">USUARIO</option>
+                </select>
+            </div>
+
+            <div class="campo-completo" id="areaPermissoes">
+                <label>Permissões do usuário</label>
+
+                <div class="permissoes-grid">
+                    <label>
+                        <input type="checkbox" value="TIPO_DOACAO">
+                        Tipo de Doação
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="TAMANHOS">
+                        Tamanhos
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="ESTOQUE">
+                        Estoque
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="DOADOR">
+                        Doador
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="RECEPTOR">
+                        Receptor
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="DOACAO">
+                        Doação
+                    </label>
+
+                    <label>
+                        <input type="checkbox" value="DISTRIBUICAO">
+                        Distribuição
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Login</th>
+                <th>Perfil</th>
+                <th>Permissões</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaUsuarios">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuarioLogado = JSON.parse(localStorage.getItem("usuarioLogado"));
+
+    if (!usuarioLogado) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuarioLogado.nome + " • " + usuarioLogado.perfil;
+
+        if (usuarioLogado.perfil !== "ADMIN") {
+            alert("Acesso permitido somente para administradores.");
+            window.location.href = "/menu";
+        }
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("tituloFormulario").innerText = "Novo Usuário";
+        document.getElementById("formulario").style.display = "block";
+        controlarPermissoes();
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("nome").value = "";
+        document.getElementById("login").value = "";
+        document.getElementById("senha").value = "";
+        document.getElementById("perfil").value = "ADMIN";
+
+        document.querySelectorAll("#areaPermissoes input[type='checkbox']").forEach(check => {
+            check.checked = false;
+        });
+    }
+
+    function controlarPermissoes() {
+        const perfil = document.getElementById("perfil").value;
+        const areaPermissoes = document.getElementById("areaPermissoes");
+
+        if (perfil === "ADMIN") {
+            areaPermissoes.style.display = "none";
+
+            document.querySelectorAll("#areaPermissoes input[type='checkbox']").forEach(check => {
+                check.checked = false;
+            });
+        } else {
+            areaPermissoes.style.display = "block";
+        }
+    }
+
+    function permissoesSelecionadas() {
+        const permissoes = [];
+
+        document.querySelectorAll("#areaPermissoes input[type='checkbox']:checked").forEach(check => {
+            permissoes.push(check.value);
+        });
+
+        return permissoes;
+    }
+
+    function carregarUsuarios() {
+        fetch("/usuarios")
+            .then(response => response.json())
+            .then(usuarios => {
+                const tabela = document.getElementById("tabelaUsuarios");
+                tabela.innerHTML = "";
+
+                usuarios.forEach(usuario => {
+                    const permissoes = usuario.permissoes ?? [];
+
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${usuario.id}</td>
+                            <td>${usuario.nome ?? ""}</td>
+                            <td>${usuario.login ?? ""}</td>
+                            <td>${usuario.perfil ?? ""}</td>
+                            <td>${permissoes.length > 0 ? permissoes.join(", ") : "-"}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${usuario.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${usuario.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar usuários: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+
+        const usuario = {
+            nome: document.getElementById("nome").value,
+            login: document.getElementById("login").value,
+            senha: document.getElementById("senha").value,
+            perfil: document.getElementById("perfil").value,
+            permissoes: permissoesSelecionadas()
+        };
+
+        const url = id ? `/usuarios/${id}` : "/usuarios";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(usuario)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar usuário.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+                carregarUsuarios();
+            })
+            .catch(error => {
+                alert("Erro ao salvar usuário: " + error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/usuarios/${id}`)
+            .then(response => response.json())
+            .then(usuario => {
+                document.getElementById("id").value = usuario.id;
+                document.getElementById("nome").value = usuario.nome ?? "";
+                document.getElementById("login").value = usuario.login ?? "";
+                document.getElementById("senha").value = "";
+                document.getElementById("perfil").value = usuario.perfil ?? "USUARIO";
+
+                document.querySelectorAll("#areaPermissoes input[type='checkbox']").forEach(check => {
+                    check.checked = false;
+                });
+
+                const permissoes = usuario.permissoes ?? [];
+
+                document.querySelectorAll("#areaPermissoes input[type='checkbox']").forEach(check => {
+                    if (permissoes.includes(check.value)) {
+                        check.checked = true;
+                    }
+                });
+
+                controlarPermissoes();
+
+                document.getElementById("tituloFormulario").innerText = "Editar Usuário";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar usuário: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (usuarioLogado && usuarioLogado.id === id) {
+            alert("Você não pode excluir o usuário que está logado.");
+            return;
+        }
+
+        if (!confirm("Deseja realmente excluir este usuário?")) {
+            return;
+        }
+
+        fetch(`/usuarios/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir o usuário.");
+                }
+
+                carregarUsuarios();
+            })
+            .catch(error => {
+                alert("Erro ao excluir usuário: " + error.message);
+            });
+    }
+
+    carregarUsuarios();
+</script>
+
+</body>
+</html>

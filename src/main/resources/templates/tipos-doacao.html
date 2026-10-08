@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Tipos de Doação</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Cadastro de Tipos de Doação</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Tipos de Doação cadastrados</h2>
+            <p class="descricao">Cadastre e organize os tipos de itens recebidos nas doações.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Novo Tipo</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Novo Tipo de Doação</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+            <div>
+                <label>Nome</label>
+                <input type="text" id="nome" placeholder="Ex: Arroz, Feijão, Camiseta">
+            </div>
+
+            <div>
+                <label>Categoria</label>
+                <select id="categoria">
+                    <option value="">Selecione uma categoria</option>
+                    <option value="ALIMENTOS">ALIMENTOS</option>
+                    <option value="VESTUARIO">VESTUÁRIO</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaTipos">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
+
+    if (!usuario) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuario.nome + " • " + usuario.perfil;
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("tituloFormulario").innerText = "Novo Tipo de Doação";
+        document.getElementById("formulario").style.display = "block";
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("nome").value = "";
+        document.getElementById("categoria").value = "";
+    }
+
+    function carregarTipos() {
+        fetch("/tipos-doacao")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar tipos de doação.");
+                }
+
+                return response.json();
+            })
+            .then(tipos => {
+                const tabela = document.getElementById("tabelaTipos");
+                tabela.innerHTML = "";
+
+                tipos.forEach(tipo => {
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${tipo.id}</td>
+                            <td>${tipo.nome ?? ""}</td>
+                            <td>${tipo.categoria ?? ""}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${tipo.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${tipo.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar tipos de doação: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+
+        const nome = document.getElementById("nome").value;
+        const categoria = document.getElementById("categoria").value;
+
+        if (!nome || nome.trim() === "") {
+            alert("Informe o nome do tipo de doação.");
+            return;
+        }
+
+        if (!categoria) {
+            alert("Selecione a categoria do tipo de doação.");
+            return;
+        }
+
+        const tipo = {
+            nome: nome.trim().toUpperCase(),
+            categoria: categoria
+        };
+
+        const url = id ? `/tipos-doacao/${id}` : "/tipos-doacao";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(tipo)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar tipo de doação.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+                carregarTipos();
+            })
+            .catch(error => {
+                alert("Erro ao salvar tipo de doação: " + error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/tipos-doacao/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar tipo de doação.");
+                }
+
+                return response.json();
+            })
+            .then(tipo => {
+                document.getElementById("id").value = tipo.id;
+                document.getElementById("nome").value = tipo.nome ?? "";
+                document.getElementById("categoria").value = tipo.categoria ?? "";
+
+                document.getElementById("tituloFormulario").innerText = "Editar Tipo de Doação";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar tipo de doação: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir este tipo de doação?")) {
+            return;
+        }
+
+        fetch(`/tipos-doacao/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir o tipo de doação.");
+                }
+
+                carregarTipos();
+            })
+            .catch(error => {
+                alert("Erro ao excluir tipo de doação: " + error.message);
+            });
+    }
+
+    carregarTipos();
+</script>
+
+</body>
+</html>

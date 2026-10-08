@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Distribuições</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Controle de Distribuições</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Distribuições cadastradas</h2>
+            <p class="descricao">Registre as entregas de doações realizadas aos receptores.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Nova Distribuição</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Nova Distribuição</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+
+            <div>
+                <label>Receptor</label>
+                <select id="idReceptor">
+                    <option value="">Selecione um receptor</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Item do Estoque</label>
+                <select id="idEstoque">
+                    <option value="">Selecione um item</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Quantidade</label>
+                <input type="number" id="quantidade" placeholder="Quantidade" min="1">
+            </div>
+
+            <div>
+                <label>Data da Distribuição</label>
+                <input type="date" id="dataDistribuicao">
+            </div>
+
+            <div class="campo-completo">
+                <label>Observação</label>
+                <textarea id="observacao" placeholder="Observações"></textarea>
+            </div>
+
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Receptor</th>
+                <th>Item</th>
+                <th>Quantidade</th>
+                <th>Data</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaDistribuicoes">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
+
+    let mapaReceptores = {};
+    let mapaEstoques = {};
+    let mapaQuantidadesEstoque = {};
+
+    if (!usuario) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuario.nome + " • " + usuario.perfil;
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function dataHoje() {
+        return new Date().toISOString().substring(0, 10);
+    }
+
+    function formatarData(data) {
+        if (!data) {
+            return "";
+        }
+
+        const somenteData = String(data).substring(0, 10);
+
+        if (somenteData.includes("-")) {
+            const partes = somenteData.split("-");
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        return data;
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("dataDistribuicao").value = dataHoje();
+        document.getElementById("tituloFormulario").innerText = "Nova Distribuição";
+        document.getElementById("formulario").style.display = "block";
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("idReceptor").value = "";
+        document.getElementById("idEstoque").value = "";
+        document.getElementById("quantidade").value = "";
+        document.getElementById("dataDistribuicao").value = "";
+        document.getElementById("observacao").value = "";
+    }
+
+    function carregarReceptores() {
+        return fetch("/receptores")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar receptores.");
+                }
+
+                return response.json();
+            })
+            .then(receptores => {
+                const combo = document.getElementById("idReceptor");
+                combo.innerHTML = '<option value="">Selecione um receptor</option>';
+
+                mapaReceptores = {};
+
+                receptores.forEach(receptor => {
+                    mapaReceptores[receptor.id] = receptor.nome;
+
+                    combo.innerHTML += `
+                        <option value="${receptor.id}">
+                            ${receptor.nome}
+                        </option>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar receptores: " + error.message);
+            });
+    }
+
+    function carregarEstoques() {
+        return fetch("/estoques")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar estoque.");
+                }
+
+                return response.json();
+            })
+            .then(estoques => {
+                const combo = document.getElementById("idEstoque");
+                combo.innerHTML = '<option value="">Selecione um item</option>';
+
+                mapaEstoques = {};
+                mapaQuantidadesEstoque = {};
+
+                estoques.forEach(estoque => {
+                    const quantidade = estoque.quantidade ?? 0;
+
+                    mapaEstoques[estoque.id] = estoque.descricao;
+                    mapaQuantidadesEstoque[estoque.id] = quantidade;
+
+                    if (quantidade <= 0) {
+                        combo.innerHTML += `
+                            <option value="${estoque.id}" disabled>
+                                ${estoque.descricao} - Sem estoque
+                            </option>
+                        `;
+                    } else {
+                        combo.innerHTML += `
+                            <option value="${estoque.id}">
+                                ${estoque.descricao} - Estoque: ${quantidade}
+                            </option>
+                        `;
+                    }
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar estoque: " + error.message);
+            });
+    }
+
+    function carregarDistribuicoes() {
+        fetch("/distribuicoes")
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao buscar distribuições.");
+                    });
+                }
+
+                return response.json();
+            })
+            .then(distribuicoes => {
+                if (!Array.isArray(distribuicoes)) {
+                    console.log("Retorno recebido em /distribuicoes:", distribuicoes);
+                    throw new Error("O backend não retornou uma lista de distribuições.");
+                }
+
+                const tabela = document.getElementById("tabelaDistribuicoes");
+                tabela.innerHTML = "";
+
+                distribuicoes.forEach(distribuicao => {
+                    const receptorId =
+                        distribuicao.receptorId ??
+                        distribuicao.idReceptor ??
+                        distribuicao.id_receptor ??
+                        distribuicao.receptor?.id ??
+                        "";
+
+                    const estoqueId =
+                        distribuicao.estoqueId ??
+                        distribuicao.idEstoque ??
+                        distribuicao.id_estoque ??
+                        distribuicao.estoque?.id ??
+                        "";
+
+                    const nomeReceptor =
+                        distribuicao.nomeReceptor ??
+                        distribuicao.receptorNome ??
+                        distribuicao.receptor?.nome ??
+                        mapaReceptores[receptorId] ??
+                        "";
+
+                    const itemEstoque =
+                        distribuicao.descricaoEstoque ??
+                        distribuicao.estoqueDescricao ??
+                        distribuicao.estoque?.descricao ??
+                        mapaEstoques[estoqueId] ??
+                        "";
+
+                    const dataDistribuicao =
+                        distribuicao.dataDistribuicao ??
+                        distribuicao.data_distribuicao ??
+                        distribuicao.data ??
+                        "";
+
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${distribuicao.id}</td>
+                            <td>${nomeReceptor}</td>
+                            <td>${itemEstoque}</td>
+                            <td>${distribuicao.quantidade ?? 0}</td>
+                            <td>${formatarData(dataDistribuicao)}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${distribuicao.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${distribuicao.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar distribuições: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+        const receptorId = Number(document.getElementById("idReceptor").value);
+        const estoqueId = Number(document.getElementById("idEstoque").value);
+        const quantidade = Number(document.getElementById("quantidade").value);
+        const dataDistribuicao = document.getElementById("dataDistribuicao").value;
+
+        if (!receptorId) {
+            alert("Selecione um receptor.");
+            return;
+        }
+
+        if (!estoqueId) {
+            alert("Selecione um item do estoque.");
+            return;
+        }
+
+        if (!quantidade || quantidade <= 0) {
+            alert("Informe uma quantidade válida.");
+            return;
+        }
+
+        const quantidadeDisponivel = mapaQuantidadesEstoque[estoqueId] ?? 0;
+
+        if (quantidadeDisponivel <= 0) {
+            alert("Este item está sem saldo em estoque. Não é possível realizar a distribuição.");
+            return;
+        }
+
+        if (quantidade > quantidadeDisponivel) {
+            alert(
+                "Quantidade maior que o estoque disponível. " +
+                "Saldo atual: " + quantidadeDisponivel
+            );
+            return;
+        }
+
+        if (!dataDistribuicao) {
+            alert("Informe a data da distribuição.");
+            return;
+        }
+
+        const distribuicao = {
+            receptorId: receptorId,
+            estoqueId: estoqueId,
+            quantidade: quantidade,
+            dataDistribuicao: dataDistribuicao,
+            data: dataDistribuicao,
+            observacao: document.getElementById("observacao").value
+        };
+
+        const url = id ? `/distribuicoes/${id}` : "/distribuicoes";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(distribuicao)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar distribuição.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+
+                return Promise.all([
+                    carregarReceptores(),
+                    carregarEstoques()
+                ]);
+            })
+            .then(() => {
+                carregarDistribuicoes();
+            })
+            .catch(error => {
+                alert(
+                    "Não foi possível salvar a distribuição. " +
+                    "Verifique se o item selecionado possui saldo suficiente em estoque."
+                );
+            });
+    }
+
+    function editar(id) {
+        fetch(`/distribuicoes/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar distribuição.");
+                }
+
+                return response.json();
+            })
+            .then(distribuicao => {
+                const receptorId =
+                    distribuicao.receptorId ??
+                    distribuicao.idReceptor ??
+                    distribuicao.id_receptor ??
+                    distribuicao.receptor?.id ??
+                    "";
+
+                const estoqueId =
+                    distribuicao.estoqueId ??
+                    distribuicao.idEstoque ??
+                    distribuicao.id_estoque ??
+                    distribuicao.estoque?.id ??
+                    "";
+
+                const dataDistribuicao =
+                    distribuicao.dataDistribuicao ??
+                    distribuicao.data_distribuicao ??
+                    distribuicao.data ??
+                    "";
+
+                document.getElementById("id").value = distribuicao.id;
+                document.getElementById("idReceptor").value = receptorId;
+                document.getElementById("idEstoque").value = estoqueId;
+                document.getElementById("quantidade").value = distribuicao.quantidade ?? "";
+                document.getElementById("dataDistribuicao").value = String(dataDistribuicao).substring(0, 10);
+                document.getElementById("observacao").value = distribuicao.observacao ?? "";
+
+                document.getElementById("tituloFormulario").innerText = "Editar Distribuição";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar distribuição: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir esta distribuição?")) {
+            return;
+        }
+
+        fetch(`/distribuicoes/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir a distribuição.");
+                }
+
+                return Promise.all([
+                    carregarReceptores(),
+                    carregarEstoques()
+                ]);
+            })
+            .then(() => {
+                carregarDistribuicoes();
+            })
+            .catch(error => {
+                alert("Erro ao excluir distribuição: " + error.message);
+            });
+    }
+
+    Promise.all([
+        carregarReceptores(),
+        carregarEstoques()
+    ]).then(() => {
+        carregarDistribuicoes();
+    });
+</script>
+
+</body>
+</html>

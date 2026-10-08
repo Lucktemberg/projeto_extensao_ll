@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Estoque</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Controle de Estoque</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Itens em estoque</h2>
+            <p class="descricao">Acompanhe, cadastre e ajuste os itens disponíveis para doação.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Novo Item</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Novo Item de Estoque</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+            <div>
+                <label>Descrição</label>
+                <input type="text" id="descricao" placeholder="Descrição do item">
+            </div>
+
+            <div>
+                <label>Quantidade</label>
+                <input type="number" id="quantidade" placeholder="Quantidade" min="0">
+            </div>
+
+            <div class="campo-completo">
+                <label>Categoria</label>
+                <input type="text" id="categoria" placeholder="Ex: ALIMENTOS, VESTUARIO">
+            </div>
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Descrição</th>
+                <th>Categoria</th>
+                <th>Quantidade</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaEstoques">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
+
+    if (!usuario) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuario.nome + " • " + usuario.perfil;
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("tituloFormulario").innerText = "Novo Item de Estoque";
+        document.getElementById("formulario").style.display = "block";
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("descricao").value = "";
+        document.getElementById("quantidade").value = "";
+        document.getElementById("categoria").value = "";
+    }
+
+    function carregarEstoques() {
+        fetch("/estoques")
+            .then(response => response.json())
+            .then(estoques => {
+                const tabela = document.getElementById("tabelaEstoques");
+                tabela.innerHTML = "";
+
+                estoques.forEach(estoque => {
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${estoque.id}</td>
+                            <td>${estoque.descricao ?? ""}</td>
+                            <td>${estoque.categoria ?? ""}</td>
+                            <td>${estoque.quantidade ?? 0}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${estoque.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${estoque.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar estoque: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+
+        const estoque = {
+            descricao: document.getElementById("descricao").value,
+            quantidade: Number(document.getElementById("quantidade").value),
+            categoria: document.getElementById("categoria").value
+        };
+
+        const url = id ? `/estoques/${id}` : "/estoques";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(estoque)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar item de estoque.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+                carregarEstoques();
+            })
+            .catch(error => {
+                alert("Erro ao salvar item de estoque: " + error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/estoques/${id}`)
+            .then(response => response.json())
+            .then(estoque => {
+                document.getElementById("id").value = estoque.id;
+                document.getElementById("descricao").value = estoque.descricao ?? "";
+                document.getElementById("quantidade").value = estoque.quantidade ?? 0;
+                document.getElementById("categoria").value = estoque.categoria ?? "";
+
+                document.getElementById("tituloFormulario").innerText = "Editar Item de Estoque";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar item de estoque: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir este item de estoque?")) {
+            return;
+        }
+
+        fetch(`/estoques/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir o item de estoque.");
+                }
+
+                carregarEstoques();
+            })
+            .catch(error => {
+                alert("Erro ao excluir item de estoque: " + error.message);
+            });
+    }
+
+    carregarEstoques();
+</script>
+
+</body>
+</html>

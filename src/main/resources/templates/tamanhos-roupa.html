@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Solidário - Tamanhos</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topo">
+    <div>
+        <h1>SOLIDÁRIO</h1>
+        <p>Cadastro de Tamanhos de Roupa</p>
+    </div>
+
+    <div class="usuario-logado">
+        <span id="nomeUsuario">Usuário</span>
+        <button onclick="voltarMenu()">Voltar ao Menu</button>
+    </div>
+</header>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Tamanhos cadastrados</h2>
+            <p class="descricao">Cadastre os tamanhos utilizados para roupas e vestuário.</p>
+        </div>
+
+        <button class="btn btn-verde" onclick="novoCadastro()">Novo Tamanho</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Novo Tamanho</h3>
+
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+            <div>
+                <label>Tamanho</label>
+                <input type="text" id="tamanho" placeholder="Ex: P, M, G, GG">
+            </div>
+
+            <div>
+                <label>Tipo</label>
+                <input type="text" id="tipo" placeholder="Ex: ADULTO, INFANTIL">
+            </div>
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="card-tabela">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tamanho</th>
+                <th>Tipo</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody id="tabelaTamanhos">
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
+
+    if (!usuario) {
+        window.location.href = "/login";
+    } else {
+        document.getElementById("nomeUsuario").innerText =
+            usuario.nome + " • " + usuario.perfil;
+    }
+
+    function voltarMenu() {
+        window.location.href = "/menu";
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("tituloFormulario").innerText = "Novo Tamanho";
+        document.getElementById("formulario").style.display = "block";
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("tamanho").value = "";
+        document.getElementById("tipo").value = "";
+    }
+
+    function carregarTamanhos() {
+        fetch("/tamanhos-roupa")
+            .then(response => response.json())
+            .then(tamanhos => {
+                const tabela = document.getElementById("tabelaTamanhos");
+                tabela.innerHTML = "";
+
+                tamanhos.forEach(tamanho => {
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${tamanho.id}</td>
+                            <td>${tamanho.tamanho ?? ""}</td>
+                            <td>${tamanho.tipo ?? ""}</td>
+                            <td>
+                                <button class="btn-tabela btn-azul" onclick="editar(${tamanho.id})">Editar</button>
+                                <button class="btn-tabela btn-vermelho" onclick="excluir(${tamanho.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(error => {
+                alert("Erro ao carregar tamanhos: " + error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+
+        const tamanho = {
+            tamanho: document.getElementById("tamanho").value,
+            tipo: document.getElementById("tipo").value
+        };
+
+        const url = id ? `/tamanhos-roupa/${id}` : "/tamanhos-roupa";
+        const metodo = id ? "PUT" : "POST";
+
+        fetch(url, {
+            method: metodo,
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(tamanho)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(texto => {
+                        throw new Error(texto || "Erro ao salvar tamanho.");
+                    });
+                }
+            })
+            .then(() => {
+                cancelar();
+                carregarTamanhos();
+            })
+            .catch(error => {
+                alert("Erro ao salvar tamanho: " + error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/tamanhos-roupa/${id}`)
+            .then(response => response.json())
+            .then(tamanho => {
+                document.getElementById("id").value = tamanho.id;
+                document.getElementById("tamanho").value = tamanho.tamanho ?? "";
+                document.getElementById("tipo").value = tamanho.tipo ?? "";
+
+                document.getElementById("tituloFormulario").innerText = "Editar Tamanho";
+                document.getElementById("formulario").style.display = "block";
+            })
+            .catch(error => {
+                alert("Erro ao buscar tamanho: " + error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir este tamanho?")) {
+            return;
+        }
+
+        fetch(`/tamanhos-roupa/${id}`, {
+            method: "DELETE"
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não foi possível excluir o tamanho.");
+                }
+
+                carregarTamanhos();
+            })
+            .catch(error => {
+                alert("Erro ao excluir tamanho: " + error.message);
+            });
+    }
+
+    carregarTamanhos();
+</script>
+
+</body>
+</html>

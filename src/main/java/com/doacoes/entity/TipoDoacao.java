@@ -13,6 +13,9 @@ public class TipoDoacao {
     @Column(nullable = false)
     private String nome;
 
+    @Column(nullable = false)
+    private String categoria;
+
     public TipoDoacao() {
     }
 
@@ -30,5 +33,14 @@ public class TipoDoacao {
 
     public void setNome(String nome) {
         this.nome = nome;
+    }
+
+
+    public String getCategoria() {
+        return categoria;
+    }
+
+    public void setCategoria(String categoria) {
+        this.categoria = categoria;
     }
 }

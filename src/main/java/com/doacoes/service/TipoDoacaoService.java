@@ -29,6 +29,10 @@ public class TipoDoacaoService {
     public TipoDoacao salvar(
             TipoDoacaoRequestDTO dto) {
 
+        validarCategoria(
+                dto.getCategoria()
+        );
+
         TipoDoacao tipoDoacao =
                 new TipoDoacao();
 
@@ -77,6 +81,10 @@ public class TipoDoacaoService {
             Long id,
             TipoDoacaoRequestDTO dto) {
 
+        validarCategoria(
+                dto.getCategoria()
+        );
+
         TipoDoacao tipoDoacao =
                 buscarPorId(id);
 
@@ -118,5 +126,40 @@ public class TipoDoacaoService {
                         .trim()
                         .toUpperCase()
         );
+
+        tipoDoacao.setCategoria(
+                dto.getCategoria()
+                        .trim()
+                        .toUpperCase()
+        );
+    }
+
+    // =====================================================
+    // VALIDAR CATEGORIA
+    // =====================================================
+
+    private void validarCategoria(
+            String categoria) {
+
+        if (categoria == null
+                || categoria.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Categoria é obrigatória"
+            );
+        }
+
+        String categoriaFormatada =
+                categoria
+                        .trim()
+                        .toUpperCase();
+
+        if (!"ALIMENTOS".equals(categoriaFormatada)
+                && !"VESTUARIO".equals(categoriaFormatada)) {
+
+            throw new IllegalArgumentException(
+                    "Categoria inválida. Use ALIMENTOS ou VESTUARIO"
+            );
+        }
     }
 }

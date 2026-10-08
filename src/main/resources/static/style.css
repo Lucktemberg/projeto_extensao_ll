@@ -374,3 +374,26 @@ tbody tr:hover {
     font-weight: bold;
     cursor: pointer;
 }
+
+.permissoes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 18px;
+    background: #fafafa;
+    border: 1px solid #dce1e6;
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.permissoes-grid label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    margin: 0;
+    color: #34495e;
+}
+
+.permissoes-grid input {
+    width: auto;
+}

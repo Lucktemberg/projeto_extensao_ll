@@ -6,12 +6,14 @@ public class TipoDoacaoResponseDTO {
 
     private Long id;
     private String nome;
+    private String categoria;
 
     public TipoDoacaoResponseDTO(
             TipoDoacao tipoDoacao) {
 
         this.id = tipoDoacao.getId();
         this.nome = tipoDoacao.getNome();
+        this.categoria = tipoDoacao.getCategoria();
     }
 
     public Long getId() {
@@ -20,5 +22,9 @@ public class TipoDoacaoResponseDTO {
 
     public String getNome() {
         return nome;
+    }
+
+    public String getCategoria() {
+        return categoria;
     }
 }

@@ -30,37 +30,37 @@
             <p>Gerenciar acessos ao sistema</p>
         </a>
 
-        <a href="/tela-tipos-doacao" class="card card-azul">
+        <a href="/tela-tipos-doacao" class="card card-azul modulo-card" data-permissao="TIPO_DOACAO">
             <h3>Tipo de Doação</h3>
             <p>Cadastrar e organizar tipos de itens</p>
         </a>
 
-        <a href="/tela-tamanhos-roupa" class="card card-roxo">
+        <a href="/tela-tamanhos-roupa" class="card card-roxo modulo-card" data-permissao="TAMANHOS">
             <h3>Tamanhos</h3>
             <p>Cadastrar tamanhos de roupas</p>
         </a>
 
-        <a href="/tela-estoques" class="card card-verde">
+        <a href="/tela-estoques" class="card card-verde modulo-card" data-permissao="ESTOQUE">
             <h3>Estoque</h3>
             <p>Acompanhar itens disponíveis</p>
         </a>
 
-        <a href="/tela-doadores" class="card card-roxo2">
+        <a href="/tela-doadores" class="card card-roxo2 modulo-card" data-permissao="DOADOR">
             <h3>Doador</h3>
             <p>Gerenciar pessoas que realizam doações</p>
         </a>
 
-        <a href="/tela-receptores" class="card card-laranja">
+        <a href="/tela-receptores" class="card card-laranja modulo-card" data-permissao="RECEPTOR">
             <h3>Receptor</h3>
             <p>Gerenciar pessoas que recebem doações</p>
         </a>
 
-        <a href="/tela-doacoes" class="card card-turquesa">
+        <a href="/tela-doacoes" class="card card-turquesa modulo-card" data-permissao="DOACAO">
             <h3>Doação</h3>
             <p>Registrar novas doações recebidas</p>
         </a>
 
-        <a href="/tela-distribuicoes" class="card card-vermelho">
+        <a href="/tela-distribuicoes" class="card card-vermelho modulo-card" data-permissao="DISTRIBUICAO">
             <h3>Distribuição</h3>
             <p>Controlar a entrega das doações</p>
         </a>
@@ -77,11 +77,27 @@
         document.getElementById("nomeUsuario").innerText =
             usuario.nome + " • " + usuario.perfil;
 
-        if (usuario.perfil !== "ADMIN") {
-            document.querySelectorAll(".admin-only").forEach(item => {
-                item.style.display = "none";
-            });
+        aplicarPermissoes();
+    }
+
+    function aplicarPermissoes() {
+        if (usuario.perfil === "ADMIN") {
+            return;
         }
+
+        document.querySelectorAll(".admin-only").forEach(card => {
+            card.style.display = "none";
+        });
+
+        const permissoes = usuario.permissoes ?? [];
+
+        document.querySelectorAll(".modulo-card").forEach(card => {
+            const permissaoNecessaria = card.getAttribute("data-permissao");
+
+            if (!permissoes.includes(permissaoNecessaria)) {
+                card.style.display = "none";
+            }
+        });
     }
 
     function sair() {

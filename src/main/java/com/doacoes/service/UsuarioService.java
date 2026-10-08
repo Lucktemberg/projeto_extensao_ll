@@ -47,12 +47,23 @@ public class UsuarioService {
                         )
                 );
 
-        boolean senhaCorreta = passwordEncoder.matches(
-                senha,
-                usuario.getSenha()
-        );
+        boolean senhaCorreta = false;
 
-        if (!senhaCorreta && senha.equals(usuario.getSenha())) {
+        if (usuario.getSenha() != null) {
+            senhaCorreta = passwordEncoder.matches(
+                    senha,
+                    usuario.getSenha()
+            );
+        }
+
+        /*
+         * Compatibilidade com usuários antigos,
+         * onde a senha estava salva em texto puro.
+         */
+        if (!senhaCorreta
+                && usuario.getSenha() != null
+                && senha.equals(usuario.getSenha())) {
+
             usuario.setSenha(
                     passwordEncoder.encode(senha)
             );
@@ -256,8 +267,6 @@ public class UsuarioService {
                 );
 
         /*
-         * Mantém a regra do código antigo:
-         *
          * ADMIN não precisa possuir
          * permissões individuais.
          */
@@ -282,16 +291,18 @@ public class UsuarioService {
             return new ArrayList<>();
         }
 
-        return permissoes
-                .stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(permissao ->
-                        !permissao.isBlank()
-                )
-                .map(String::toUpperCase)
-                .distinct()
-                .toList();
+        return new ArrayList<>(
+                permissoes
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(permissao ->
+                                !permissao.isBlank()
+                        )
+                        .map(String::toUpperCase)
+                        .distinct()
+                        .toList()
+        );
     }
 
     // =====================================================
