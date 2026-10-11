@@ -2,22 +2,30 @@ package com.doacoes.service;
 
 import com.doacoes.dto.EstoqueRequestDTO;
 import com.doacoes.entity.Estoque;
+import com.doacoes.repository.DistribuicaoRepository;
 import com.doacoes.repository.EstoqueRepository;
+import com.doacoes.util.Descricoes;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class EstoqueService {
 
     private final EstoqueRepository estoqueRepository;
+    private final DistribuicaoRepository distribuicaoRepository;
 
     public EstoqueService(
-            EstoqueRepository estoqueRepository) {
+            EstoqueRepository estoqueRepository,
+            DistribuicaoRepository distribuicaoRepository) {
 
         this.estoqueRepository = estoqueRepository;
+        this.distribuicaoRepository = distribuicaoRepository;
     }
 
     // =====================================================
@@ -27,6 +35,16 @@ public class EstoqueService {
     @Transactional
     public Estoque salvar(
             EstoqueRequestDTO dto) {
+
+        String descricao = Descricoes.normalizar(dto.getDescricao());
+        String categoria = Descricoes.normalizar(dto.getCategoria());
+
+        if (buscarPorDescricaoECategoria(descricao, categoria).isPresent()) {
+
+            throw new IllegalArgumentException(
+                    "Já existe um item de estoque com essa descrição e categoria"
+            );
+        }
 
         Estoque estoque = new Estoque();
 
@@ -44,9 +62,10 @@ public class EstoqueService {
     // READ - LISTAR
     // =====================================================
 
+    @Transactional
     public List<Estoque> listar() {
-
-        return estoqueRepository.findAll();
+        consolidarDuplicatas();
+        return estoqueRepository.findAllByOrderByDescricaoAsc();
     }
 
     // =====================================================
@@ -76,6 +95,17 @@ public class EstoqueService {
         Estoque estoque =
                 buscarPorId(id);
 
+        String descricao = Descricoes.normalizar(dto.getDescricao());
+        String categoria = Descricoes.normalizar(dto.getCategoria());
+
+        buscarPorDescricaoECategoria(descricao, categoria)
+                .filter(existente -> !existente.getId().equals(id))
+                .ifPresent(existente -> {
+                    throw new IllegalArgumentException(
+                            "Já existe um item de estoque com essa descrição e categoria"
+                    );
+                });
+
         preencherEstoque(
                 estoque,
                 dto
@@ -95,6 +125,12 @@ public class EstoqueService {
 
         Estoque estoque =
                 buscarPorId(id);
+
+        if (distribuicaoRepository.existsByEstoqueId(id)) {
+            throw new IllegalArgumentException(
+                    "Não é possível excluir este item porque já existem distribuições vinculadas."
+            );
+        }
 
         estoqueRepository.delete(
                 estoque
@@ -195,23 +231,13 @@ public class EstoqueService {
             );
         }
 
-        String descricaoFormatada =
-                descricao
-                        .trim()
-                        .toUpperCase();
+        String descricaoFormatada = Descricoes.normalizar(descricao);
+        String categoriaFormatada = Descricoes.normalizar(categoria);
 
-        String categoriaFormatada =
-                categoria
-                        .trim()
-                        .toUpperCase();
-
-        Estoque estoque =
-                estoqueRepository
-                        .findFirstByDescricaoIgnoreCaseAndCategoriaIgnoreCase(
-                                descricaoFormatada,
-                                categoriaFormatada
-                        )
-                        .orElse(null);
+        Estoque estoque = buscarPorDescricaoECategoria(
+                descricaoFormatada,
+                categoriaFormatada
+        ).orElse(null);
 
         /*
          * Se o item já existe,
@@ -291,27 +317,17 @@ public class EstoqueService {
             );
         }
 
-        String descricaoFormatada =
-                descricao
-                        .trim()
-                        .toUpperCase();
+        String descricaoFormatada = Descricoes.normalizar(descricao);
+        String categoriaFormatada = Descricoes.normalizar(categoria);
 
-        String categoriaFormatada =
-                categoria
-                        .trim()
-                        .toUpperCase();
-
-        Estoque estoque =
-                estoqueRepository
-                        .findFirstByDescricaoIgnoreCaseAndCategoriaIgnoreCase(
-                                descricaoFormatada,
-                                categoriaFormatada
-                        )
-                        .orElseThrow(() ->
-                                new EntityNotFoundException(
-                                        "Item não encontrado no estoque"
-                                )
-                        );
+        Estoque estoque = buscarPorDescricaoECategoria(
+                descricaoFormatada,
+                categoriaFormatada
+        ).orElseThrow(() ->
+                new EntityNotFoundException(
+                        "Item não encontrado no estoque"
+                )
+        );
 
         if (estoque.getQuantidade()
                 < quantidade) {
@@ -349,25 +365,10 @@ public class EstoqueService {
             Integer quantidadeNova,
             String categoriaNova) {
 
-        String descricaoAntigaFormatada =
-                descricaoAntiga
-                        .trim()
-                        .toUpperCase();
-
-        String descricaoNovaFormatada =
-                descricaoNova
-                        .trim()
-                        .toUpperCase();
-
-        String categoriaAntigaFormatada =
-                categoriaAntiga
-                        .trim()
-                        .toUpperCase();
-
-        String categoriaNovaFormatada =
-                categoriaNova
-                        .trim()
-                        .toUpperCase();
+        String descricaoAntigaFormatada = Descricoes.normalizar(descricaoAntiga);
+        String descricaoNovaFormatada = Descricoes.normalizar(descricaoNova);
+        String categoriaAntigaFormatada = Descricoes.normalizar(categoriaAntiga);
+        String categoriaNovaFormatada = Descricoes.normalizar(categoriaNova);
 
         boolean mesmoItem =
                 descricaoAntigaFormatada
@@ -456,21 +457,70 @@ public class EstoqueService {
             Estoque estoque,
             EstoqueRequestDTO dto) {
 
-        estoque.setDescricao(
-                dto.getDescricao()
-                        .trim()
-                        .toUpperCase()
-        );
+        estoque.setDescricao(Descricoes.normalizar(dto.getDescricao()));
+        estoque.setQuantidade(dto.getQuantidade());
+        estoque.setCategoria(Descricoes.normalizar(dto.getCategoria()));
+    }
 
-        estoque.setQuantidade(
-                dto.getQuantidade()
-        );
+    public Estoque exigirPorDescricaoECategoria(String descricao, String categoria) {
+        return buscarPorDescricaoECategoria(descricao, categoria)
+                .orElseThrow(() ->
+                        new EntityNotFoundException("Este item não está no estoque para entrega")
+                );
+    }
 
-        estoque.setCategoria(
-                dto.getCategoria()
-                        .trim()
-                        .toUpperCase()
-        );
+    private Optional<Estoque> buscarPorDescricaoECategoria(
+            String descricao,
+            String categoria) {
+
+        String descricaoNormalizada = Descricoes.normalizar(descricao);
+        String categoriaNormalizada = Descricoes.normalizar(categoria);
+
+        Optional<Estoque> exato = estoqueRepository
+                .findFirstByDescricaoIgnoreCaseAndCategoriaIgnoreCase(
+                        descricaoNormalizada,
+                        categoriaNormalizada
+                );
+
+        if (exato.isPresent()) {
+            return exato;
+        }
+
+        return estoqueRepository.findAll().stream()
+                .filter(item -> Descricoes.chave(item.getDescricao(), item.getCategoria())
+                        .equals(Descricoes.chave(descricaoNormalizada, categoriaNormalizada)))
+                .findFirst();
+    }
+
+    private void consolidarDuplicatas() {
+        Map<String, Estoque> canonico = new LinkedHashMap<>();
+
+        for (Estoque item : estoqueRepository.findAll()) {
+            String descricao = Descricoes.normalizar(item.getDescricao());
+            String categoria = Descricoes.normalizar(item.getCategoria());
+            item.setDescricao(descricao);
+            item.setCategoria(categoria);
+
+            String chave = Descricoes.chave(descricao, categoria);
+            Estoque existente = canonico.get(chave);
+
+            if (existente == null) {
+                canonico.put(chave, item);
+                estoqueRepository.save(item);
+                continue;
+            }
+
+            if (distribuicaoRepository.existsByEstoqueId(item.getId())) {
+                estoqueRepository.save(item);
+                continue;
+            }
+
+            existente.setQuantidade(
+                    existente.getQuantidade() + item.getQuantidade()
+            );
+            estoqueRepository.save(existente);
+            estoqueRepository.delete(item);
+        }
     }
 
     // =====================================================

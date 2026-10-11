@@ -1,7 +1,10 @@
 package com.doacoes.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+
+import java.time.LocalDate;
 
 public class DistribuicaoRequestDTO {
 
@@ -14,6 +17,11 @@ public class DistribuicaoRequestDTO {
     @NotNull(message = "A quantidade é obrigatória")
     @Min(value = 1, message = "A quantidade deve ser maior que zero")
     private Integer quantidade;
+
+    @JsonAlias("data")
+    private LocalDate dataDistribuicao;
+
+    private String observacao;
 
     public Long getEstoqueId() {
         return estoqueId;
@@ -37,5 +45,21 @@ public class DistribuicaoRequestDTO {
 
     public void setQuantidade(Integer quantidade) {
         this.quantidade = quantidade;
+    }
+
+    public LocalDate getDataDistribuicao() {
+        return dataDistribuicao;
+    }
+
+    public void setDataDistribuicao(LocalDate dataDistribuicao) {
+        this.dataDistribuicao = dataDistribuicao;
+    }
+
+    public String getObservacao() {
+        return observacao;
+    }
+
+    public void setObservacao(String observacao) {
+        this.observacao = observacao;
     }
 }

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Solidário - Relatório mensal</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
+</head>
+<body>
+
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
+
+<main class="conteudo">
+    <section class="cabecalho-modulo">
+        <div>
+            <h2>Relatório mensal</h2>
+            <p class="descricao">Resumo das doações e distribuições do período selecionado.</p>
+        </div>
+    </section>
+
+    <form class="barra-relatorio" onsubmit="carregarRelatorio(event)">
+        <div class="filtro-campos">
+            <label>
+                Mês
+                <select id="mesRelatorio"></select>
+            </label>
+            <label>
+                Ano
+                <input type="number" id="anoRelatorio" min="2020" max="2100">
+            </label>
+            <button class="btn btn-verde" type="submit">Atualizar</button>
+        </div>
+        <div class="filtro-exportar">
+            <button class="btn btn-exportar" type="button" onclick="salvarRelatorio('csv')">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v10m0 0-3.5-3.5M12 14l3.5-3.5M5 19h14"/>
+                </svg>
+                Salvar CSV
+            </button>
+            <button class="btn btn-exportar btn-exportar-pdf" type="button" onclick="salvarRelatorio('pdf')">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v10m0 0-3.5-3.5M12 14l3.5-3.5M5 19h14"/>
+                </svg>
+                Salvar PDF
+            </button>
+        </div>
+    </form>
+
+    <section class="indicadores" aria-label="Totais do mês">
+        <article class="indicador">
+            <div>
+                <span class="indicador-label">Doações no mês</span>
+                <strong id="totalDoacoes">—</strong>
+                <small id="competenciaRelatorio">Selecione o período</small>
+            </div>
+        </article>
+        <article class="indicador">
+            <div>
+                <span class="indicador-label">Itens doados</span>
+                <strong id="itensDoados">—</strong>
+                <small>Quantidade recebida nas doações</small>
+            </div>
+        </article>
+        <article class="indicador">
+            <div>
+                <span class="indicador-label">Distribuições</span>
+                <strong id="totalDistribuicoes">—</strong>
+                <small>Entregas registradas</small>
+            </div>
+        </article>
+        <article class="indicador">
+            <div>
+                <span class="indicador-label">Itens distribuídos</span>
+                <strong id="itensDistribuidos">—</strong>
+                <small>Quantidade entregue</small>
+            </div>
+        </article>
+    </section>
+
+    <section class="painel-dashboard">
+        <article class="resumo-estoque">
+            <div class="titulo-secao">
+                <div>
+                    <h2>Por etapa</h2>
+                    <p>Doações do mês agrupadas pelo status atual.</p>
+                </div>
+            </div>
+            <ul class="lista-atencao" id="listaStatus"></ul>
+        </article>
+        <article class="resumo-estoque">
+            <div class="titulo-secao">
+                <div>
+                    <h2>Por categoria</h2>
+                    <p>Alimentos e vestuário cadastrados no período.</p>
+                </div>
+            </div>
+            <ul class="lista-atencao" id="listaCategorias"></ul>
+        </article>
+    </section>
+</main>
+
+<script>
+    const hoje = new Date();
+    const mesSelect = document.getElementById("mesRelatorio");
+    const meses = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+
+    meses.forEach((nome, indice) => {
+        mesSelect.innerHTML += `<option value="${indice + 1}">${nome}</option>`;
+    });
+
+    mesSelect.value = String(hoje.getMonth() + 1);
+    document.getElementById("anoRelatorio").value = hoje.getFullYear();
+    carregarRelatorio();
+
+    function carregarRelatorio(event) {
+        if (event) {
+            event.preventDefault();
+        }
+
+        const ano = document.getElementById("anoRelatorio").value;
+        const mes = document.getElementById("mesRelatorio").value;
+
+        fetch(`/relatorios/mensal?ano=${ano}&mes=${mes}`)
+            .then(resposta => {
+                if (!resposta.ok) {
+                    return mensagemErro(resposta, "Não foi possível carregar o relatório.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                return resposta.json();
+            })
+            .then(relatorio => {
+                document.getElementById("totalDoacoes").textContent =
+                    Number(relatorio.totalDoacoes || 0).toLocaleString("pt-BR");
+                document.getElementById("itensDoados").textContent =
+                    Number(relatorio.itensDoados || 0).toLocaleString("pt-BR");
+                document.getElementById("totalDistribuicoes").textContent =
+                    Number(relatorio.totalDistribuicoes || 0).toLocaleString("pt-BR");
+                document.getElementById("itensDistribuidos").textContent =
+                    Number(relatorio.itensDistribuidos || 0).toLocaleString("pt-BR");
+                document.getElementById("competenciaRelatorio").textContent =
+                    relatorio.competencia || "";
+
+                preencherLista("listaStatus", relatorio.porStatus, "Nenhuma doação neste mês.");
+                preencherLista("listaCategorias", relatorio.porCategoria, "Nenhum item categorizado.");
+            })
+            .catch(erro => {
+                mostrarErro(erro.message);
+            });
+    }
+
+    function salvarRelatorio(formato) {
+        const ano = document.getElementById("anoRelatorio").value;
+        const mes = document.getElementById("mesRelatorio").value;
+        const nome = `relatorio-solidario-${ano}-${String(mes).padStart(2, "0")}.${formato}`;
+
+        fetch(`/relatorios/mensal.${formato}?ano=${ano}&mes=${mes}`)
+            .then(resposta => {
+                if (!resposta.ok) {
+                    return mensagemErro(resposta, "Não foi possível salvar o relatório.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                return resposta.blob();
+            })
+            .then(arquivo => {
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(arquivo);
+                link.download = nome;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                mostrarAviso("Relatório salvo em " + formato.toUpperCase() + ".");
+            })
+            .catch(erro => {
+                mostrarErro(erro.message);
+            });
+    }
+
+    function preencherLista(id, itens, vazio) {
+        const lista = document.getElementById(id);
+        lista.innerHTML = "";
+
+        if (!itens || itens.length === 0) {
+            lista.innerHTML = `<li>${textoSeguro(vazio)}</li>`;
+            return;
+        }
+
+        itens.forEach(item => {
+            lista.innerHTML += `
+                <li>${textoSeguro(item.nome)}<small>${Number(item.quantidade || 0).toLocaleString("pt-BR")}</small></li>
+            `;
+        });
+    }
+</script>
+
+</body>
+</html>

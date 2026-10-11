@@ -1,33 +1,32 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Doações</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Cadastro de Doações</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
     <div class="cabecalho-modulo">
         <div>
             <h2>Doações cadastradas</h2>
-            <p class="descricao">Registre as doações recebidas e acompanhe os itens doados.</p>
+            <p class="descricao">Registre a doação, avance as etapas e compartilhe o código de acompanhamento com o doador.</p>
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Nova Doação</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar doação..."
+               oninput="filtrarTabela(this, 'tabelaDoacoes')"
+               aria-label="Buscar doações">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -96,6 +95,13 @@
             </div>
 
             <div>
+                <label>Campanha</label>
+                <select id="campanhaId">
+                    <option value="">Sem campanha</option>
+                </select>
+            </div>
+
+            <div>
                 <label>Data da Doação</label>
                 <input type="date" id="dataDoacao">
             </div>
@@ -118,16 +124,68 @@
         </div>
     </section>
 
+    <section class="card-form" id="formularioDistribuicao" style="display: none;">
+        <h3>Entregar doação</h3>
+        <input type="hidden" id="doacaoDistribuirId">
+
+        <p class="descricao" id="resumoDistribuicao"></p>
+
+        <div class="form-grid">
+            <div class="campo-completo">
+                <label>Receptor</label>
+                <select id="receptorDistribuicao" onchange="mostrarEnderecoReceptor()">
+                    <option value="">Selecione quem vai receber</option>
+                </select>
+            </div>
+
+            <div class="campo-completo destino-entrega" id="caixaEnderecoReceptor" hidden>
+                <strong>Endereço de entrega</strong>
+                <p id="enderecoReceptor">—</p>
+                <small id="telefoneReceptor"></small>
+            </div>
+
+            <div>
+                <label>Quantidade</label>
+                <input type="number" id="quantidadeDistribuicao" min="1" placeholder="Quantidade">
+                <small id="ajudaQuantidadeDistribuicao" class="ajuda-campo"></small>
+            </div>
+
+            <div>
+                <label>Data da entrega</label>
+                <input type="date" id="dataDistribuicaoDoacao">
+            </div>
+
+            <div class="campo-completo">
+                <label>Observação</label>
+                <textarea id="observacaoDistribuicao" placeholder="Observações da entrega"></textarea>
+            </div>
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-cinza" type="button" onclick="cancelarDistribuicao()">Cancelar</button>
+            <button class="btn btn-verde" type="button" onclick="confirmarDistribuicao()">Confirmar entrega</button>
+        </div>
+    </section>
+
     <section class="card-tabela">
-        <table>
+        <table class="tabela-acoes-amplas">
+            <colgroup>
+                <col>
+                <col>
+                <col>
+                <col class="col-status">
+                <col class="col-codigo">
+                <col class="col-qtd">
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
-                <th>ID</th>
                 <th>Doador</th>
                 <th>Item</th>
-                <th>Categoria</th>
-                <th>Quantidade</th>
-                <th>Data</th>
+                <th>Campanha</th>
+                <th>Status</th>
+                <th>Código</th>
+                <th>Qtd</th>
                 <th>Ações</th>
             </tr>
             </thead>
@@ -139,19 +197,9 @@
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
     let tiposDoacao = [];
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
+    let campanhaSugerida = null;
+    let destinosEntrega = [];
 
     function dataHoje() {
         return new Date().toISOString().substring(0, 10);
@@ -193,7 +241,7 @@
                 tiposDoacao = tipos;
             })
             .catch(error => {
-                alert("Erro ao carregar tipos de doação: " + error.message);
+                mostrarErro("Erro ao carregar tipos de doação: " + error.message);
             });
     }
 
@@ -226,7 +274,7 @@
 
         tiposFiltrados.forEach(tipo => {
             lista.innerHTML += `
-                <option value="${tipo.nome}">
+                <option value="${textoSeguro(tipo.nome)}">
             `;
         });
     }
@@ -268,7 +316,7 @@
         limparFormulario();
         document.getElementById("dataDoacao").value = dataHoje();
         document.getElementById("tituloFormulario").innerText = "Nova Doação";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
         controlarCamposCategoria(true);
     }
 
@@ -288,7 +336,34 @@
         document.getElementById("unidade").value = "";
         document.getElementById("detalheUnidade").value = "";
         document.getElementById("observacao").value = "";
+        document.getElementById("campanhaId").value = campanhaSugerida || "";
         controlarCamposCategoria(true);
+    }
+
+    function carregarCampanhas() {
+        return fetch("/campanhas?ativas=true")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar campanhas.");
+                }
+                return response.json();
+            })
+            .then(campanhas => {
+                const combo = document.getElementById("campanhaId");
+                combo.innerHTML = '<option value="">Sem campanha</option>';
+                campanhas.forEach(campanha => {
+                    combo.innerHTML += `
+                        <option value="${campanha.id}">${textoSeguro(campanha.nome)}</option>
+                    `;
+                });
+                campanhaSugerida = campanhas.length === 1 ? campanhas[0].id : null;
+                if (!document.getElementById("id").value && campanhaSugerida) {
+                    combo.value = campanhaSugerida;
+                }
+            })
+            .catch(error => {
+                mostrarErro("Erro ao carregar campanhas: " + error.message);
+            });
     }
 
     function carregarDoadores() {
@@ -306,14 +381,14 @@
 
                 doadores.forEach(doador => {
                     combo.innerHTML += `
-                        <option value="${doador.id}" data-nome="${doador.nome}">
-                            ${doador.nome}
+                        <option value="${doador.id}" data-nome="${textoSeguro(doador.nome)}">
+                            ${textoSeguro(doador.nome)}
                         </option>
                     `;
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar doadores: " + error.message);
+                mostrarErro("Erro ao carregar doadores: " + error.message);
             });
     }
 
@@ -329,6 +404,11 @@
             .then(doacoes => {
                 const tabela = document.getElementById("tabelaDoacoes");
                 tabela.innerHTML = "";
+
+                if (doacoes.length === 0) {
+                    tabelaVazia(tabela, 7, "Nenhuma doação cadastrada ainda.");
+                    return;
+                }
 
                 doacoes.forEach(doacao => {
                     const nomeDoador =
@@ -351,13 +431,29 @@
 
                     tabela.innerHTML += `
                         <tr>
-                            <td>${doacao.id}</td>
-                            <td>${nomeDoador}</td>
-                            <td>${descricaoItem}</td>
-                            <td>${doacao.categoria ?? ""}</td>
-                            <td>${doacao.quantidade ?? 0}</td>
-                            <td>${formatarData(dataDoacao)}</td>
+                            <td>${textoSeguro(nomeDoador)}</td>
+                            <td>${textoSeguro(descricaoItem)}</td>
+                            <td>${textoSeguro(doacao.campanhaNome || "-")}</td>
                             <td>
+                                <span class="selo-status selo-${textoSeguro((doacao.status || "").toLowerCase())}">
+                                    ${textoSeguro(doacao.statusRotulo || doacao.status || "Recebida")}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="codigo-doacao">
+                                    <code>${textoSeguro(doacao.codigoAcompanhamento || "-")}</code>
+                                    ${doacao.codigoAcompanhamento ? `
+                                        <button class="btn-tabela btn-cinza" type="button"
+                                                onclick="copiarCodigo('${textoSeguro(doacao.codigoAcompanhamento)}')">
+                                            Copiar
+                                        </button>
+                                    ` : ""}
+                                </div>
+                            </td>
+                            <td>${doacao.quantidade ?? 0}</td>
+                            <td>
+                                ${botoesEtapa(doacao)}
+                                ${botoesAviso(doacao)}
                                 <button class="btn-tabela btn-azul" onclick="editar(${doacao.id})">Editar</button>
                                 <button class="btn-tabela btn-vermelho" onclick="excluir(${doacao.id})">Excluir</button>
                             </td>
@@ -366,7 +462,7 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar doações: " + error.message);
+                mostrarErro("Erro ao carregar doações: " + error.message);
             });
     }
 
@@ -385,32 +481,32 @@
         const dataDoacao = document.getElementById("dataDoacao").value;
 
         if (!doadorId) {
-            alert("Selecione um doador.");
+            mostrarErro("Selecione um doador.");
             return;
         }
 
         if (!categoria) {
-            alert("Selecione a categoria da doação.");
+            mostrarErro("Selecione a categoria da doação.");
             return;
         }
 
         if (!descricaoItem || descricaoItem.trim() === "") {
-            alert("Informe o tipo de doação.");
+            mostrarErro("Informe o tipo de doação.");
             return;
         }
 
         if (!quantidade || quantidade <= 0) {
-            alert("Informe uma quantidade válida.");
+            mostrarErro("Informe uma quantidade válida.");
             return;
         }
 
         if (!dataDoacao) {
-            alert("Informe a data da doação.");
+            mostrarErro("Informe a data da doação.");
             return;
         }
 
         if (categoria === "VESTUARIO" && !document.getElementById("tamanho").value) {
-            alert("Informe o tamanho do vestuário.");
+            mostrarErro("Informe o tamanho do vestuário.");
             return;
         }
 
@@ -424,7 +520,7 @@
         }
 
         if (categoria === "ALIMENTOS" && !unidade) {
-            alert("Informe a unidade do alimento.");
+            mostrarErro("Informe a unidade do alimento.");
             return;
         }
 
@@ -440,7 +536,10 @@
             tamanho: tamanho,
             unidade: unidade,
             detalheUnidade: detalheUnidade,
-            observacao: document.getElementById("observacao").value
+            observacao: document.getElementById("observacao").value,
+            campanhaId: document.getElementById("campanhaId").value
+                ? Number(document.getElementById("campanhaId").value)
+                : null
         };
 
         const url = id ? `/doacoes/${id}` : "/doacoes";
@@ -455,17 +554,27 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(texto => {
-                        throw new Error(texto || "Erro ao salvar doação.");
-                    });
+                    return mensagemErro(response, "Erro ao salvar doação.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
+                return response.json();
             })
-            .then(() => {
+            .then(doacaoSalva => {
                 cancelar();
                 carregarDoacoes();
+                if (!id && doacaoSalva?.codigoAcompanhamento) {
+                    mostrarAviso(
+                        "Doação cadastrada. Código: "
+                        + doacaoSalva.codigoAcompanhamento
+                    );
+                } else {
+                    mostrarAviso("Doação atualizada.");
+                }
             })
             .catch(error => {
-                alert("Erro ao salvar doação: " + error.message);
+                mostrarErro("Erro ao salvar doação: " + error.message);
             });
     }
 
@@ -479,12 +588,22 @@
                 return response.json();
             })
             .then(doacao => {
-                const idDoador =
+                let idDoador =
                     doacao.doadorId ??
                     doacao.idDoador ??
                     doacao.id_doador ??
                     doacao.doador?.id ??
                     "";
+
+                if (!idDoador && doacao.nomeDoador) {
+                    const opcoes = Array.from(
+                        document.getElementById("idDoador").options
+                    );
+                    const opcaoEncontrada = opcoes.find(opcao =>
+                        opcao.dataset.nome === doacao.nomeDoador
+                    );
+                    idDoador = opcaoEncontrada?.value ?? "";
+                }
 
                 const descricaoItem =
                     doacao.descricaoItem ??
@@ -515,12 +634,13 @@
                 document.getElementById("unidade").value = doacao.unidade ?? "";
                 document.getElementById("detalheUnidade").value = detalheUnidade;
                 document.getElementById("observacao").value = doacao.observacao ?? "";
+                document.getElementById("campanhaId").value = doacao.campanhaId ?? "";
 
                 document.getElementById("tituloFormulario").innerText = "Editar Doação";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar doação: " + error.message);
+                mostrarErro("Erro ao buscar doação: " + error.message);
             });
     }
 
@@ -534,19 +654,232 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error("Não foi possível excluir a doação.");
+                    return mensagemErro(response, "Não foi possível excluir a doação.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
 
                 carregarDoacoes();
             })
             .catch(error => {
-                alert("Erro ao excluir doação: " + error.message);
+                mostrarErro("Erro ao excluir doação: " + error.message);
             });
+    }
+
+    function botoesEtapa(doacao) {
+        const status = doacao.status;
+        if (status === "CADASTRADA") {
+            return `
+                <button class="btn-tabela btn-cinza" onclick="avancarStatus(${doacao.id}, 'COLETA_AGENDADA')">Agendar coleta</button>
+                <button class="btn-tabela btn-verde" onclick="avancarStatus(${doacao.id}, 'RECEBIDA')">Receber</button>
+            `;
+        }
+        if (status === "COLETA_AGENDADA") {
+            return `
+                <button class="btn-tabela btn-verde" onclick="avancarStatus(${doacao.id}, 'RECEBIDA')">Receber</button>
+            `;
+        }
+        if (status === "RECEBIDA") {
+            return `
+                <button class="btn-tabela btn-azul" onclick="abrirDistribuicao(${doacao.id})">Distribuir</button>
+            `;
+        }
+        return "";
+    }
+
+    function carregarDestinos() {
+        return fetch("/doacoes/destinos")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar receptores.");
+                }
+                return response.json();
+            })
+            .then(destinos => {
+                destinosEntrega = destinos;
+                const combo = document.getElementById("receptorDistribuicao");
+                combo.innerHTML = '<option value="">Selecione quem vai receber</option>';
+                destinos.forEach(destino => {
+                    const endereco = destino.endereco ? ` — ${destino.endereco}` : "";
+                    combo.innerHTML += `
+                        <option value="${destino.id}">
+                            ${textoSeguro(destino.nome)}${textoSeguro(endereco)}
+                        </option>
+                    `;
+                });
+            })
+            .catch(error => {
+                mostrarErro("Erro ao carregar destinatários: " + error.message);
+            });
+    }
+
+    function abrirDistribuicao(id) {
+        document.getElementById("formulario").style.display = "none";
+        fetch(`/doacoes/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar doação.");
+                }
+                return response.json();
+            })
+            .then(doacao => {
+                document.getElementById("doacaoDistribuirId").value = doacao.id;
+                document.getElementById("dataDistribuicaoDoacao").value = dataHoje();
+                document.getElementById("observacaoDistribuicao").value = "";
+                document.getElementById("receptorDistribuicao").value = "";
+                document.getElementById("quantidadeDistribuicao").value = doacao.quantidade ?? 1;
+                document.getElementById("quantidadeDistribuicao").max = doacao.quantidade ?? 1;
+                document.getElementById("ajudaQuantidadeDistribuicao").textContent =
+                    `Disponível nesta doação: ${doacao.quantidade ?? 0}`;
+                document.getElementById("resumoDistribuicao").textContent =
+                    `${doacao.quantidade}x ${doacao.descricaoItem} disponíveis para entrega.`;
+                mostrarEnderecoReceptor();
+                const formulario = document.getElementById("formularioDistribuicao");
+                formulario.style.display = "block";
+                formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function mostrarEnderecoReceptor() {
+        const destino = destinosEntrega.find(item =>
+            String(item.id) === document.getElementById("receptorDistribuicao").value
+        );
+        const caixa = document.getElementById("caixaEnderecoReceptor");
+
+        if (!destino) {
+            caixa.hidden = true;
+            return;
+        }
+
+        caixa.hidden = false;
+        document.getElementById("enderecoReceptor").textContent =
+            destino.endereco && destino.endereco.trim() !== ""
+                ? destino.endereco
+                : "Este receptor ainda não tem endereço cadastrado.";
+        document.getElementById("telefoneReceptor").textContent = destino.telefone
+            ? "Telefone: " + destino.telefone
+            : "";
+    }
+
+    function cancelarDistribuicao() {
+        document.getElementById("formularioDistribuicao").style.display = "none";
+        document.getElementById("doacaoDistribuirId").value = "";
+        document.getElementById("receptorDistribuicao").value = "";
+        document.getElementById("observacaoDistribuicao").value = "";
+        document.getElementById("caixaEnderecoReceptor").hidden = true;
+    }
+
+    function confirmarDistribuicao() {
+        const id = document.getElementById("doacaoDistribuirId").value;
+        const receptorId = Number(document.getElementById("receptorDistribuicao").value);
+        const quantidade = Number(document.getElementById("quantidadeDistribuicao").value);
+        const destino = destinosEntrega.find(item => item.id === receptorId);
+        const maximo = Number(document.getElementById("quantidadeDistribuicao").max);
+
+        if (!receptorId) {
+            mostrarErro("Selecione o receptor e confira o endereço de entrega.");
+            return;
+        }
+
+        if (!destino?.endereco || destino.endereco.trim() === "") {
+            mostrarErro("Cadastre o endereço deste receptor antes de confirmar a entrega.");
+            return;
+        }
+
+        if (!quantidade || quantidade <= 0) {
+            mostrarErro("Informe a quantidade que será entregue.");
+            return;
+        }
+
+        if (quantidade > maximo) {
+            mostrarErro("A quantidade não pode ser maior que " + maximo + ".");
+            return;
+        }
+
+        fetch(`/doacoes/${id}/distribuir`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                receptorId: receptorId,
+                quantidade: quantidade,
+                dataDistribuicao: document.getElementById("dataDistribuicaoDoacao").value,
+                observacao: document.getElementById("observacaoDistribuicao").value
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return mensagemErro(response, "Não foi possível registrar a entrega.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                return response.json();
+            })
+            .then(() => {
+                cancelarDistribuicao();
+                carregarDoacoes();
+                mostrarAviso("Entrega registrada para " + destino.nome + ".");
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function avancarStatus(id, status) {
+        const corpo = { status };
+        if (status === "COLETA_AGENDADA") {
+            corpo.dataColeta = dataHoje();
+        }
+
+        fetch(`/doacoes/${id}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(corpo)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return mensagemErro(response, "Não foi possível atualizar a etapa.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                carregarDoacoes();
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function copiarCodigo(codigo) {
+        navigator.clipboard.writeText(codigo)
+            .then(() => mostrarAviso("Código copiado: " + codigo))
+            .catch(() => mostrarErro("Não foi possível copiar o código."));
+    }
+
+    function botoesAviso(doacao) {
+        let html = "";
+        if (linkSeguro(doacao.linkWhatsapp, ["https://wa.me/"])) {
+            html += `<a class="btn-tabela btn-verde" href="${doacao.linkWhatsapp}" target="_blank" rel="noopener">WhatsApp</a>`;
+        }
+        if (linkSeguro(doacao.linkEmail, ["mailto:"])) {
+            html += `<a class="btn-tabela btn-cinza" href="${doacao.linkEmail}">E-mail</a>`;
+        }
+        return html;
+    }
+
+    function linkSeguro(url, prefixos) {
+        return typeof url === "string" && prefixos.some(prefixo => url.startsWith(prefixo));
     }
 
     Promise.all([
         carregarDoadores(),
-        carregarTiposDoacao()
+        carregarTiposDoacao(),
+        carregarCampanhas(),
+        carregarDestinos()
     ]).then(() => {
         controlarCamposCategoria(true);
         carregarDoacoes();

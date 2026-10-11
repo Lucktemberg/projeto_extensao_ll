@@ -60,4 +60,19 @@ public class PaginaController {
     public String tamanhosRoupa() {
         return "tamanhos-roupa";
     }
+
+    @GetMapping("/tela-campanhas")
+    public String campanhas() {
+        return "campanhas";
+    }
+
+    @GetMapping("/tela-relatorios")
+    public String relatorios() {
+        return "relatorios";
+    }
+
+    @GetMapping("/acompanhar")
+    public String acompanhar() {
+        return "acompanhar";
+    }
 }

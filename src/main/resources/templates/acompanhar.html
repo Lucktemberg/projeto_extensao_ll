@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Solidário - Acompanhar doação</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script>
+        document.documentElement.setAttribute(
+            "data-tema",
+            localStorage.getItem("solidarioTema") === "escuro" ? "escuro" : "claro"
+        );
+    </script>
+</head>
+<body class="pagina-publica">
+
+<main class="conteudo acompanhamento">
+    <section class="card-publico">
+        <span class="sobretitulo">Acompanhamento</span>
+        <h1>Onde está a sua doação</h1>
+        <p class="descricao">Informe o código recebido no cadastro. Você vê as etapas da contribuição, sem identificação de quem recebeu.</p>
+
+        <form class="busca-codigo" onsubmit="buscar(event)">
+            <label for="codigo">Código de acompanhamento</label>
+            <div class="linha-busca">
+                <input type="text" id="codigo" placeholder="Ex: SOL-A3F9K2" autocomplete="off" required>
+                <button class="btn btn-verde" type="submit">Consultar</button>
+            </div>
+        </form>
+
+        <p id="mensagemAcompanhamento" class="mensagem-dashboard" hidden></p>
+    </section>
+
+    <section class="card-publico" id="resultadoAcompanhamento" hidden>
+        <div class="resultado-topo">
+            <div>
+                <span class="selo-status" id="seloStatus"></span>
+                <h2 id="tituloItem"></h2>
+                <p id="textoCampanha" class="descricao"></p>
+            </div>
+            <code class="codigo-destaque" id="textoCodigo"></code>
+        </div>
+
+        <ol class="etapas-doacao" id="listaEtapas"></ol>
+
+        <p id="textoDestino" class="texto-destino"></p>
+        <a class="btn btn-contorno" href="/login">Voltar ao login</a>
+    </section>
+</main>
+
+<script>
+    function textoSeguro(valor) {
+        return String(valor ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+    }
+
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get("codigo")) {
+        document.getElementById("codigo").value = parametros.get("codigo");
+        consultar(parametros.get("codigo"));
+    }
+
+    function buscar(event) {
+        event.preventDefault();
+        consultar(document.getElementById("codigo").value);
+    }
+
+    function consultar(codigo) {
+        const mensagem = document.getElementById("mensagemAcompanhamento");
+        const resultado = document.getElementById("resultadoAcompanhamento");
+        mensagem.hidden = true;
+        resultado.hidden = true;
+
+        fetch("/doacoes/codigo/" + encodeURIComponent(codigo.trim()))
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Não encontramos uma doação com este código.");
+                }
+                return response.json();
+            })
+            .then(doacao => {
+                document.getElementById("seloStatus").textContent = doacao.statusRotulo;
+                document.getElementById("seloStatus").className =
+                    "selo-status selo-" + String(doacao.status || "").toLowerCase();
+                document.getElementById("tituloItem").textContent =
+                    (doacao.quantidade || 0) + " × " + (doacao.descricaoItem || "Item");
+                document.getElementById("textoCampanha").textContent = doacao.campanhaNome
+                    ? "Campanha " + doacao.campanhaNome
+                    : "Doação avulsa";
+                document.getElementById("textoCodigo").textContent = doacao.codigo;
+                document.getElementById("textoDestino").textContent = doacao.destino;
+
+                const lista = document.getElementById("listaEtapas");
+                lista.innerHTML = "";
+                (doacao.etapas || []).forEach((etapa, indice) => {
+                    lista.innerHTML += `
+                        <li class="${etapa.atual ? "atual" : ""} ${etapa.concluida ? "concluida" : ""}">
+                            <span class="etapa-numero">${indice + 1}</span>
+                            <strong>${textoSeguro(etapa.titulo)}</strong>
+                        </li>
+                    `;
+                });
+
+                resultado.hidden = false;
+            })
+            .catch(error => {
+                mensagem.textContent = error.message;
+                mensagem.hidden = false;
+            });
+    }
+</script>
+
+</body>
+</html>

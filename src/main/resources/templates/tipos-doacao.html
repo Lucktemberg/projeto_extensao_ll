@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Tipos de Doação</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Cadastro de Tipos de Doação</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -28,6 +21,12 @@
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Novo Tipo</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar tipo..."
+               oninput="filtrarTabela(this, 'tabelaTipos')"
+               aria-label="Buscar tipos de doação">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -59,6 +58,12 @@
 
     <section class="card-tabela">
         <table>
+            <colgroup>
+                <col class="col-id">
+                <col>
+                <col class="col-categoria">
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
                 <th>ID</th>
@@ -75,23 +80,10 @@
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
-
     function novoCadastro() {
         limparFormulario();
         document.getElementById("tituloFormulario").innerText = "Novo Tipo de Doação";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
     }
 
     function cancelar() {
@@ -118,12 +110,17 @@
                 const tabela = document.getElementById("tabelaTipos");
                 tabela.innerHTML = "";
 
+                if (tipos.length === 0) {
+                    tabelaVazia(tabela, 4, "Nenhum tipo de doação cadastrado ainda.");
+                    return;
+                }
+
                 tipos.forEach(tipo => {
                     tabela.innerHTML += `
                         <tr>
                             <td>${tipo.id}</td>
-                            <td>${tipo.nome ?? ""}</td>
-                            <td>${tipo.categoria ?? ""}</td>
+                            <td>${textoSeguro(tipo.nome)}</td>
+                            <td>${textoSeguro(tipo.categoria)}</td>
                             <td>
                                 <button class="btn-tabela btn-azul" onclick="editar(${tipo.id})">Editar</button>
                                 <button class="btn-tabela btn-vermelho" onclick="excluir(${tipo.id})">Excluir</button>
@@ -133,7 +130,7 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar tipos de doação: " + error.message);
+                mostrarErro("Erro ao carregar tipos de doação: " + error.message);
             });
     }
 
@@ -144,12 +141,12 @@
         const categoria = document.getElementById("categoria").value;
 
         if (!nome || nome.trim() === "") {
-            alert("Informe o nome do tipo de doação.");
+            mostrarErro("Informe o nome do tipo de doação.");
             return;
         }
 
         if (!categoria) {
-            alert("Selecione a categoria do tipo de doação.");
+            mostrarErro("Selecione a categoria do tipo de doação.");
             return;
         }
 
@@ -180,7 +177,7 @@
                 carregarTipos();
             })
             .catch(error => {
-                alert("Erro ao salvar tipo de doação: " + error.message);
+                mostrarErro("Erro ao salvar tipo de doação: " + error.message);
             });
     }
 
@@ -199,10 +196,10 @@
                 document.getElementById("categoria").value = tipo.categoria ?? "";
 
                 document.getElementById("tituloFormulario").innerText = "Editar Tipo de Doação";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar tipo de doação: " + error.message);
+                mostrarErro("Erro ao buscar tipo de doação: " + error.message);
             });
     }
 
@@ -222,7 +219,7 @@
                 carregarTipos();
             })
             .catch(error => {
-                alert("Erro ao excluir tipo de doação: " + error.message);
+                mostrarErro("Erro ao excluir tipo de doação: " + error.message);
             });
     }
 

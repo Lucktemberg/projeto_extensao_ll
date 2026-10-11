@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Tamanhos</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Cadastro de Tamanhos de Roupa</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -28,6 +21,12 @@
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Novo Tamanho</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar tamanho..."
+               oninput="filtrarTabela(this, 'tabelaTamanhos')"
+               aria-label="Buscar tamanhos">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -55,6 +54,12 @@
 
     <section class="card-tabela">
         <table>
+            <colgroup>
+                <col class="col-id">
+                <col>
+                <col class="col-categoria">
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
                 <th>ID</th>
@@ -71,23 +76,10 @@
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
-
     function novoCadastro() {
         limparFormulario();
         document.getElementById("tituloFormulario").innerText = "Novo Tamanho";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
     }
 
     function cancelar() {
@@ -108,12 +100,17 @@
                 const tabela = document.getElementById("tabelaTamanhos");
                 tabela.innerHTML = "";
 
+                if (tamanhos.length === 0) {
+                    tabelaVazia(tabela, 4, "Nenhum tamanho cadastrado ainda.");
+                    return;
+                }
+
                 tamanhos.forEach(tamanho => {
                     tabela.innerHTML += `
                         <tr>
                             <td>${tamanho.id}</td>
-                            <td>${tamanho.tamanho ?? ""}</td>
-                            <td>${tamanho.tipo ?? ""}</td>
+                            <td>${textoSeguro(tamanho.tamanho)}</td>
+                            <td>${textoSeguro(tamanho.tipo)}</td>
                             <td>
                                 <button class="btn-tabela btn-azul" onclick="editar(${tamanho.id})">Editar</button>
                                 <button class="btn-tabela btn-vermelho" onclick="excluir(${tamanho.id})">Excluir</button>
@@ -123,7 +120,7 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar tamanhos: " + error.message);
+                mostrarErro("Erro ao carregar tamanhos: " + error.message);
             });
     }
 
@@ -157,7 +154,7 @@
                 carregarTamanhos();
             })
             .catch(error => {
-                alert("Erro ao salvar tamanho: " + error.message);
+                mostrarErro("Erro ao salvar tamanho: " + error.message);
             });
     }
 
@@ -170,10 +167,10 @@
                 document.getElementById("tipo").value = tamanho.tipo ?? "";
 
                 document.getElementById("tituloFormulario").innerText = "Editar Tamanho";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar tamanho: " + error.message);
+                mostrarErro("Erro ao buscar tamanho: " + error.message);
             });
     }
 
@@ -193,7 +190,7 @@
                 carregarTamanhos();
             })
             .catch(error => {
-                alert("Erro ao excluir tamanho: " + error.message);
+                mostrarErro("Erro ao excluir tamanho: " + error.message);
             });
     }
 

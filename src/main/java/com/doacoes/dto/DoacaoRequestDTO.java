@@ -1,5 +1,6 @@
 package com.doacoes.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,8 +9,10 @@ import java.time.LocalDate;
 
 public class DoacaoRequestDTO {
 
-    @NotBlank(message = "Nome do doador é obrigatório")
     private String nomeDoador;
+
+    @JsonAlias("idDoador")
+    private Long doadorId;
 
     @NotBlank(message = "Descrição do item é obrigatória")
     private String descricaoItem;
@@ -21,7 +24,6 @@ public class DoacaoRequestDTO {
     @NotBlank(message = "Categoria é obrigatória")
     private String categoria;
 
-    @NotBlank(message = "Unidade é obrigatória")
     private String unidade;
 
     private String detalheUnidade;
@@ -31,12 +33,24 @@ public class DoacaoRequestDTO {
     @NotNull(message = "Data da doação é obrigatória")
     private LocalDate dataDoacao;
 
+    private String observacao;
+
+    private Long campanhaId;
+
     public String getNomeDoador() {
         return nomeDoador;
     }
 
     public void setNomeDoador(String nomeDoador) {
         this.nomeDoador = nomeDoador;
+    }
+
+    public Long getDoadorId() {
+        return doadorId;
+    }
+
+    public void setDoadorId(Long doadorId) {
+        this.doadorId = doadorId;
     }
 
     public String getDescricaoItem() {
@@ -93,5 +107,21 @@ public class DoacaoRequestDTO {
 
     public void setDataDoacao(LocalDate dataDoacao) {
         this.dataDoacao = dataDoacao;
+    }
+
+    public String getObservacao() {
+        return observacao;
+    }
+
+    public void setObservacao(String observacao) {
+        this.observacao = observacao;
+    }
+
+    public Long getCampanhaId() {
+        return campanhaId;
+    }
+
+    public void setCampanhaId(Long campanhaId) {
+        this.campanhaId = campanhaId;
     }
 }

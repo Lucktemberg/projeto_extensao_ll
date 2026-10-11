@@ -24,6 +24,9 @@ public class Distribuicao {
     @Column(nullable = false)
     private LocalDateTime data;
 
+    @Column(length = 1000)
+    private String observacao;
+
     public Distribuicao() {
     }
 
@@ -65,5 +68,13 @@ public class Distribuicao {
 
     public void setData(LocalDateTime data) {
         this.data = data;
+    }
+
+    public String getObservacao() {
+        return observacao;
+    }
+
+    public void setObservacao(String observacao) {
+        this.observacao = observacao;
     }
 }

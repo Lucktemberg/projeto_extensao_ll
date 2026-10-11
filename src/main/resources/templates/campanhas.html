@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Solidário - Campanhas</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
+</head>
+<body>
+
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
+
+<main class="conteudo">
+
+    <div class="cabecalho-modulo">
+        <div>
+            <h2>Campanhas</h2>
+            <p class="descricao">Defina metas, acompanhe o progresso e veja o que ainda falta arrecadar.</p>
+        </div>
+        <button class="btn btn-verde" onclick="novoCadastro()">Nova Campanha</button>
+    </div>
+
+    <section class="card-form" id="formulario" style="display: none;">
+        <h3 id="tituloFormulario">Nova Campanha</h3>
+        <input type="hidden" id="id">
+
+        <div class="form-grid">
+            <div>
+                <label>Nome</label>
+                <input type="text" id="nome" placeholder="Ex: Inverno Solidário">
+            </div>
+            <div>
+                <label>Meta geral</label>
+                <input type="number" id="metaQuantidade" min="1" placeholder="200">
+            </div>
+            <div>
+                <label>Início</label>
+                <input type="date" id="dataInicio">
+            </div>
+            <div>
+                <label>Término</label>
+                <input type="date" id="dataFim">
+            </div>
+            <div>
+                <label>Situação</label>
+                <select id="ativa">
+                    <option value="true">Ativa</option>
+                    <option value="false">Encerrada</option>
+                </select>
+            </div>
+            <div class="campo-completo">
+                <label>Descrição</label>
+                <textarea id="descricao" placeholder="Objetivo da campanha"></textarea>
+            </div>
+        </div>
+
+        <div class="itens-meta">
+            <div class="titulo-secao">
+                <div>
+                    <h3>Itens da meta</h3>
+                    <p>Opcional. Use para mostrar o que ainda falta, item a item.</p>
+                </div>
+                <button class="btn btn-contorno" type="button" onclick="adicionarItemMeta()">+ Adicionar item</button>
+            </div>
+            <div id="listaItensMeta"></div>
+        </div>
+
+        <div class="acoes-form">
+            <button class="btn btn-contorno" type="button" onclick="cancelar()">Cancelar</button>
+            <button class="btn btn-verde" type="button" onclick="salvar()">Salvar</button>
+        </div>
+    </section>
+
+    <section class="grade-campanhas" id="listaCampanhas"></section>
+
+</main>
+
+<script>
+    function dataHoje() {
+        return new Date().toISOString().substring(0, 10);
+    }
+
+    function formatarData(data) {
+        if (!data) {
+            return "";
+        }
+        const somenteData = String(data).substring(0, 10);
+        if (somenteData.includes("-")) {
+            const partes = somenteData.split("-");
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+        return data;
+    }
+
+    function novoCadastro() {
+        limparFormulario();
+        document.getElementById("dataInicio").value = dataHoje();
+        document.getElementById("tituloFormulario").innerText = "Nova Campanha";
+        mostrarFormulario();
+    }
+
+    function cancelar() {
+        limparFormulario();
+        document.getElementById("formulario").style.display = "none";
+    }
+
+    function limparFormulario() {
+        document.getElementById("id").value = "";
+        document.getElementById("nome").value = "";
+        document.getElementById("metaQuantidade").value = "";
+        document.getElementById("dataInicio").value = "";
+        document.getElementById("dataFim").value = "";
+        document.getElementById("ativa").value = "true";
+        document.getElementById("descricao").value = "";
+        document.getElementById("listaItensMeta").innerHTML = "";
+    }
+
+    function adicionarItemMeta(item) {
+        const bloco = document.createElement("div");
+        bloco.className = "item-meta";
+        bloco.innerHTML = `
+            <input type="text" class="item-descricao" placeholder="Item, ex: Casaco" value="${textoSeguro(item?.descricaoItem || "")}">
+            <select class="item-categoria">
+                <option value="VESTUARIO">VESTUÁRIO</option>
+                <option value="ALIMENTOS">ALIMENTOS</option>
+            </select>
+            <input type="number" class="item-meta-qtd" min="1" placeholder="Meta" value="${item?.meta || item?.metaQuantidade || ""}">
+            <button class="btn-remover" type="button" onclick="this.parentElement.remove()">Remover</button>
+        `;
+        if (item?.categoria) {
+            bloco.querySelector(".item-categoria").value = item.categoria;
+        }
+        document.getElementById("listaItensMeta").appendChild(bloco);
+    }
+
+    function itensDoFormulario() {
+        return Array.from(document.querySelectorAll(".item-meta")).map(bloco => ({
+            descricaoItem: bloco.querySelector(".item-descricao").value.trim(),
+            categoria: bloco.querySelector(".item-categoria").value,
+            metaQuantidade: Number(bloco.querySelector(".item-meta-qtd").value)
+        })).filter(item => item.descricaoItem && item.metaQuantidade > 0);
+    }
+
+    function carregarCampanhas() {
+        fetch("/campanhas")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar campanhas.");
+                }
+                return response.json();
+            })
+            .then(campanhas => {
+                const lista = document.getElementById("listaCampanhas");
+                lista.innerHTML = "";
+
+                if (campanhas.length === 0) {
+                    lista.innerHTML = '<article class="card-form"><p>Nenhuma campanha cadastrada ainda.</p></article>';
+                    return;
+                }
+
+                campanhas.forEach(campanha => {
+                    const itens = (campanha.itens || []).map(item => `
+                        <li>
+                            <strong>${textoSeguro(item.descricaoItem)}</strong>
+                            <span>${item.arrecadado} de ${item.meta}</span>
+                            <small>${item.faltam > 0 ? item.faltam + " ainda faltam" : "Meta atingida"}</small>
+                        </li>
+                    `).join("");
+
+                    lista.innerHTML += `
+                        <article class="card-campanha">
+                            <div class="titulo-secao">
+                                <div>
+                                    <span class="selo-status ${campanha.ativa ? "selo-recebida" : "selo-cadastrada"}">
+                                        ${campanha.ativa ? "Ativa" : "Encerrada"}
+                                    </span>
+                                    <h3>${textoSeguro(campanha.nome)}</h3>
+                                    <p>${textoSeguro(campanha.descricao || "Sem descrição")}</p>
+                                </div>
+                                <strong>${campanha.percentual}%</strong>
+                            </div>
+                            <div class="barra-estoque" aria-label="Progresso da campanha">
+                                <span style="width: ${campanha.percentual}%"></span>
+                            </div>
+                            <div class="legenda-estoque">
+                                <span><strong>${campanha.arrecadado}</strong> arrecadadas</span>
+                                <span><strong>${campanha.faltam}</strong> faltam</span>
+                                <span><strong>${campanha.metaQuantidade}</strong> meta</span>
+                            </div>
+                            ${itens ? `<ul class="lista-atencao">${itens}</ul>` : ""}
+                            <small>
+                                ${formatarData(campanha.dataInicio) || "Sem início"}
+                                ${campanha.dataFim ? " até " + formatarData(campanha.dataFim) : ""}
+                                · ${campanha.totalDoacoes} doação(ões) contabilizada(s)
+                            </small>
+                            <div class="acoes-form">
+                                <button class="btn btn-contorno" type="button" onclick="editar(${campanha.id})">Editar</button>
+                                <button class="btn btn-remover" type="button" onclick="excluir(${campanha.id})">Excluir</button>
+                            </div>
+                        </article>
+                    `;
+                });
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function salvar() {
+        const id = document.getElementById("id").value;
+        const nome = document.getElementById("nome").value.trim();
+        const metaQuantidade = Number(document.getElementById("metaQuantidade").value);
+
+        if (!nome) {
+            mostrarErro("Informe o nome da campanha.");
+            return;
+        }
+        if (!metaQuantidade || metaQuantidade <= 0) {
+            mostrarErro("Informe uma meta válida.");
+            return;
+        }
+
+        const campanha = {
+            nome,
+            descricao: document.getElementById("descricao").value,
+            metaQuantidade,
+            dataInicio: document.getElementById("dataInicio").value || null,
+            dataFim: document.getElementById("dataFim").value || null,
+            ativa: document.getElementById("ativa").value === "true",
+            itens: itensDoFormulario()
+        };
+
+        fetch(id ? `/campanhas/${id}` : "/campanhas", {
+            method: id ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(campanha)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return mensagemErro(response, "Erro ao salvar campanha.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                cancelar();
+                carregarCampanhas();
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function editar(id) {
+        fetch(`/campanhas/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro ao buscar campanha.");
+                }
+                return response.json();
+            })
+            .then(campanha => {
+                document.getElementById("id").value = campanha.id;
+                document.getElementById("nome").value = campanha.nome ?? "";
+                document.getElementById("metaQuantidade").value = campanha.metaQuantidade ?? "";
+                document.getElementById("dataInicio").value = campanha.dataInicio ?? "";
+                document.getElementById("dataFim").value = campanha.dataFim ?? "";
+                document.getElementById("ativa").value = campanha.ativa === false ? "false" : "true";
+                document.getElementById("descricao").value = campanha.descricao ?? "";
+                document.getElementById("listaItensMeta").innerHTML = "";
+                (campanha.itens || []).forEach(adicionarItemMeta);
+                document.getElementById("tituloFormulario").innerText = "Editar Campanha";
+                mostrarFormulario();
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    function excluir(id) {
+        if (!confirm("Deseja realmente excluir esta campanha?")) {
+            return;
+        }
+
+        fetch(`/campanhas/${id}`, { method: "DELETE" })
+            .then(response => {
+                if (!response.ok) {
+                    return mensagemErro(response, "Não foi possível excluir a campanha.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
+                }
+                carregarCampanhas();
+            })
+            .catch(error => {
+                mostrarErro(error.message);
+            });
+    }
+
+    carregarCampanhas();
+</script>
+
+</body>
+</html>

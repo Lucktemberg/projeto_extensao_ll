@@ -24,4 +24,8 @@ public interface ReceptorRepository
     List<Receptor> pesquisar(
             @Param("termo") String termo
     );
+
+    List<Receptor> findAllByOrderByNomeAsc();
+
+    List<Receptor> findByCpfIsNotNull();
 }

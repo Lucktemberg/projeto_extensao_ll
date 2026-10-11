@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Distribuições</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Controle de Distribuições</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -30,6 +23,12 @@
         <button class="btn btn-verde" onclick="novoCadastro()">Nova Distribuição</button>
     </div>
 
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar distribuição..."
+               oninput="filtrarTabela(this, 'tabelaDistribuicoes')"
+               aria-label="Buscar distribuições">
+    </div>
+
     <section class="card-form" id="formulario" style="display: none;">
         <h3 id="tituloFormulario">Nova Distribuição</h3>
 
@@ -39,9 +38,14 @@
 
             <div>
                 <label>Receptor</label>
-                <select id="idReceptor">
+                <select id="idReceptor" onchange="mostrarEnderecoReceptor()">
                     <option value="">Selecione um receptor</option>
                 </select>
+            </div>
+
+            <div class="campo-completo destino-entrega" id="caixaEnderecoReceptor" hidden>
+                <strong>Endereço de entrega</strong>
+                <p id="enderecoReceptor">—</p>
             </div>
 
             <div>
@@ -76,6 +80,14 @@
 
     <section class="card-tabela">
         <table>
+            <colgroup>
+                <col class="col-id">
+                <col>
+                <col>
+                <col class="col-qtd">
+                <col class="col-data">
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
                 <th>ID</th>
@@ -94,22 +106,12 @@
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
-
     let mapaReceptores = {};
+    let destinosReceptores = {};
     let mapaEstoques = {};
     let mapaQuantidadesEstoque = {};
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
+    let estoqueOriginalId = null;
+    let quantidadeOriginal = 0;
 
     function dataHoje() {
         return new Date().toISOString().substring(0, 10);
@@ -134,7 +136,7 @@
         limparFormulario();
         document.getElementById("dataDistribuicao").value = dataHoje();
         document.getElementById("tituloFormulario").innerText = "Nova Distribuição";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
     }
 
     function cancelar() {
@@ -149,6 +151,28 @@
         document.getElementById("quantidade").value = "";
         document.getElementById("dataDistribuicao").value = "";
         document.getElementById("observacao").value = "";
+        estoqueOriginalId = null;
+        quantidadeOriginal = 0;
+        const caixa = document.getElementById("caixaEnderecoReceptor");
+        if (caixa) {
+            caixa.hidden = true;
+        }
+    }
+
+    function mostrarEnderecoReceptor() {
+        const receptor = destinosReceptores[document.getElementById("idReceptor").value];
+        const caixa = document.getElementById("caixaEnderecoReceptor");
+        const texto = document.getElementById("enderecoReceptor");
+
+        if (!receptor) {
+            caixa.hidden = true;
+            return;
+        }
+
+        caixa.hidden = false;
+        texto.textContent = receptor.endereco && receptor.endereco.trim() !== ""
+            ? receptor.endereco
+            : "Este receptor ainda não tem endereço cadastrado.";
     }
 
     function carregarReceptores() {
@@ -165,19 +189,22 @@
                 combo.innerHTML = '<option value="">Selecione um receptor</option>';
 
                 mapaReceptores = {};
+                destinosReceptores = {};
 
                 receptores.forEach(receptor => {
                     mapaReceptores[receptor.id] = receptor.nome;
+                    destinosReceptores[receptor.id] = receptor;
+                    const endereco = receptor.endereco ? ` — ${receptor.endereco}` : "";
 
                     combo.innerHTML += `
                         <option value="${receptor.id}">
-                            ${receptor.nome}
+                            ${textoSeguro(receptor.nome)}${textoSeguro(endereco)}
                         </option>
                     `;
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar receptores: " + error.message);
+                mostrarErro("Erro ao carregar receptores: " + error.message);
             });
     }
 
@@ -206,20 +233,20 @@
                     if (quantidade <= 0) {
                         combo.innerHTML += `
                             <option value="${estoque.id}" disabled>
-                                ${estoque.descricao} - Sem estoque
+                                ${textoSeguro(estoque.descricao)} - Sem estoque
                             </option>
                         `;
                     } else {
                         combo.innerHTML += `
                             <option value="${estoque.id}">
-                                ${estoque.descricao} - Estoque: ${quantidade}
+                                ${textoSeguro(estoque.descricao)} - Estoque: ${quantidade}
                             </option>
                         `;
                     }
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar estoque: " + error.message);
+                mostrarErro("Erro ao carregar estoque: " + error.message);
             });
     }
 
@@ -242,6 +269,11 @@
 
                 const tabela = document.getElementById("tabelaDistribuicoes");
                 tabela.innerHTML = "";
+
+                if (distribuicoes.length === 0) {
+                    tabelaVazia(tabela, 6, "Nenhuma distribuição cadastrada ainda.");
+                    return;
+                }
 
                 distribuicoes.forEach(distribuicao => {
                     const receptorId =
@@ -281,8 +313,8 @@
                     tabela.innerHTML += `
                         <tr>
                             <td>${distribuicao.id}</td>
-                            <td>${nomeReceptor}</td>
-                            <td>${itemEstoque}</td>
+                            <td>${textoSeguro(nomeReceptor)}</td>
+                            <td>${textoSeguro(itemEstoque)}</td>
                             <td>${distribuicao.quantidade ?? 0}</td>
                             <td>${formatarData(dataDistribuicao)}</td>
                             <td>
@@ -294,7 +326,7 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar distribuições: " + error.message);
+                mostrarErro("Erro ao carregar distribuições: " + error.message);
             });
     }
 
@@ -306,29 +338,33 @@
         const dataDistribuicao = document.getElementById("dataDistribuicao").value;
 
         if (!receptorId) {
-            alert("Selecione um receptor.");
+            mostrarErro("Selecione um receptor.");
             return;
         }
 
         if (!estoqueId) {
-            alert("Selecione um item do estoque.");
+            mostrarErro("Selecione um item do estoque.");
             return;
         }
 
         if (!quantidade || quantidade <= 0) {
-            alert("Informe uma quantidade válida.");
+            mostrarErro("Informe uma quantidade válida.");
             return;
         }
 
-        const quantidadeDisponivel = mapaQuantidadesEstoque[estoqueId] ?? 0;
+        let quantidadeDisponivel = mapaQuantidadesEstoque[estoqueId] ?? 0;
+
+        if (id && Number(estoqueOriginalId) === estoqueId) {
+            quantidadeDisponivel += quantidadeOriginal;
+        }
 
         if (quantidadeDisponivel <= 0) {
-            alert("Este item está sem saldo em estoque. Não é possível realizar a distribuição.");
+            mostrarErro("Este item está sem saldo em estoque. Não é possível realizar a distribuição.");
             return;
         }
 
         if (quantidade > quantidadeDisponivel) {
-            alert(
+            mostrarErro(
                 "Quantidade maior que o estoque disponível. " +
                 "Saldo atual: " + quantidadeDisponivel
             );
@@ -336,7 +372,7 @@
         }
 
         if (!dataDistribuicao) {
-            alert("Informe a data da distribuição.");
+            mostrarErro("Informe a data da distribuição.");
             return;
         }
 
@@ -361,9 +397,10 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(texto => {
-                        throw new Error(texto || "Erro ao salvar distribuição.");
-                    });
+                    return mensagemErro(response, "Erro ao salvar distribuição.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
             })
             .then(() => {
@@ -378,10 +415,7 @@
                 carregarDistribuicoes();
             })
             .catch(error => {
-                alert(
-                    "Não foi possível salvar a distribuição. " +
-                    "Verifique se o item selecionado possui saldo suficiente em estoque."
-                );
+                mostrarErro(error.message);
             });
     }
 
@@ -417,16 +451,19 @@
 
                 document.getElementById("id").value = distribuicao.id;
                 document.getElementById("idReceptor").value = receptorId;
+                mostrarEnderecoReceptor();
                 document.getElementById("idEstoque").value = estoqueId;
                 document.getElementById("quantidade").value = distribuicao.quantidade ?? "";
                 document.getElementById("dataDistribuicao").value = String(dataDistribuicao).substring(0, 10);
                 document.getElementById("observacao").value = distribuicao.observacao ?? "";
+                estoqueOriginalId = Number(estoqueId) || null;
+                quantidadeOriginal = Number(distribuicao.quantidade) || 0;
 
                 document.getElementById("tituloFormulario").innerText = "Editar Distribuição";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar distribuição: " + error.message);
+                mostrarErro("Erro ao buscar distribuição: " + error.message);
             });
     }
 
@@ -452,7 +489,7 @@
                 carregarDistribuicoes();
             })
             .catch(error => {
-                alert("Erro ao excluir distribuição: " + error.message);
+                mostrarErro("Erro ao excluir distribuição: " + error.message);
             });
     }
 

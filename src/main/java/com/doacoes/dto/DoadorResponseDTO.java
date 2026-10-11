@@ -10,6 +10,7 @@ public class DoadorResponseDTO {
     private String endereco;
     private String telefone;
     private String email;
+    private String observacao;
 
     public DoadorResponseDTO(Doador doador) {
         this.id = doador.getId();
@@ -18,6 +19,7 @@ public class DoadorResponseDTO {
         this.endereco = doador.getEndereco();
         this.telefone = doador.getTelefone();
         this.email = doador.getEmail();
+        this.observacao = doador.getObservacao();
     }
 
     public Long getId() {
@@ -42,5 +44,9 @@ public class DoadorResponseDTO {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getObservacao() {
+        return observacao;
     }
 }

@@ -2,6 +2,7 @@ package com.doacoes.dto;
 
 import com.doacoes.entity.Distribuicao;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class DistribuicaoResponseDTO {
@@ -11,6 +12,7 @@ public class DistribuicaoResponseDTO {
     private Long receptorId;
     private Integer quantidade;
     private LocalDateTime data;
+    private String observacao;
 
     public DistribuicaoResponseDTO(Distribuicao distribuicao) {
         this.id = distribuicao.getId();
@@ -18,6 +20,7 @@ public class DistribuicaoResponseDTO {
         this.receptorId = distribuicao.getReceptorId();
         this.quantidade = distribuicao.getQuantidade();
         this.data = distribuicao.getData();
+        this.observacao = distribuicao.getObservacao();
     }
 
     public Long getId() {
@@ -38,5 +41,13 @@ public class DistribuicaoResponseDTO {
 
     public LocalDateTime getData() {
         return data;
+    }
+
+    public LocalDate getDataDistribuicao() {
+        return data == null ? null : data.toLocalDate();
+    }
+
+    public String getObservacao() {
+        return observacao;
     }
 }

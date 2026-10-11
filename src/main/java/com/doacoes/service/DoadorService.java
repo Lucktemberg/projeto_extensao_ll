@@ -2,7 +2,9 @@ package com.doacoes.service;
 
 import com.doacoes.dto.DoadorRequestDTO;
 import com.doacoes.entity.Doador;
+import com.doacoes.repository.DoacaoRepository;
 import com.doacoes.repository.DoadorRepository;
+import com.doacoes.util.Textos;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +15,13 @@ import java.util.List;
 public class DoadorService {
 
     private final DoadorRepository doadorRepository;
+    private final DoacaoRepository doacaoRepository;
 
-    public DoadorService(DoadorRepository doadorRepository) {
+    public DoadorService(
+            DoadorRepository doadorRepository,
+            DoacaoRepository doacaoRepository) {
         this.doadorRepository = doadorRepository;
+        this.doacaoRepository = doacaoRepository;
     }
 
     // =========================
@@ -25,7 +31,7 @@ public class DoadorService {
     @Transactional
     public Doador salvar(DoadorRequestDTO dto) {
 
-        validarCpf(dto.getCpf());
+        validarCpf(dto.getCpf(), null);
 
         Doador doador = new Doador();
 
@@ -39,7 +45,7 @@ public class DoadorService {
     // =========================
 
     public List<Doador> listar() {
-        return doadorRepository.findAll();
+        return doadorRepository.findAllByOrderByNomeAsc();
     }
 
     // =========================
@@ -64,7 +70,7 @@ public class DoadorService {
             Long id,
             DoadorRequestDTO dto) {
 
-        validarCpf(dto.getCpf());
+        validarCpf(dto.getCpf(), id);
 
         Doador doador = buscarPorId(id);
 
@@ -81,6 +87,12 @@ public class DoadorService {
     public void deletar(Long id) {
 
         Doador doador = buscarPorId(id);
+
+        if (doacaoRepository.existsByDoadorId(id)) {
+            throw new IllegalArgumentException(
+                    "Não é possível excluir este doador porque já existem doações vinculadas."
+            );
+        }
 
         doadorRepository.delete(doador);
     }
@@ -115,17 +127,7 @@ public class DoadorService {
                         .toUpperCase()
         );
 
-        // CPF
-        if (dto.getCpf() != null
-                && !dto.getCpf().isBlank()) {
-
-            doador.setCpf(
-                    dto.getCpf().trim()
-            );
-
-        } else {
-            doador.setCpf(null);
-        }
+        doador.setCpf(Textos.cpfDigitos(dto.getCpf()));
 
         // Endereço
         if (dto.getEndereco() != null
@@ -164,25 +166,38 @@ public class DoadorService {
         } else {
             doador.setEmail(null);
         }
+
+        doador.setObservacao(Textos.opcional(dto.getObservacao()));
     }
 
     // =========================
     // VALIDAR CPF
     // =========================
 
-    private void validarCpf(String cpf) {
+    private void validarCpf(String cpf, Long idAtual) {
 
         if (cpf == null || cpf.isBlank()) {
             return;
         }
 
-        String cpfLimpo =
-                cpf.replaceAll("[^0-9]", "");
+        String cpfLimpo = Textos.cpfDigitos(cpf);
 
-        if (cpfLimpo.length() != 11) {
-
+        if (cpfLimpo == null || cpfLimpo.length() != 11) {
             throw new IllegalArgumentException(
                     "CPF inválido! Informe 11 dígitos."
+            );
+        }
+
+        boolean duplicado = doadorRepository.findByCpfIsNotNull()
+                .stream()
+                .anyMatch(existente ->
+                        !existente.getId().equals(idAtual)
+                                && Textos.mesmoCpf(existente.getCpf(), cpfLimpo)
+                );
+
+        if (duplicado) {
+            throw new IllegalArgumentException(
+                    "Já existe um doador cadastrado com este CPF."
             );
         }
     }

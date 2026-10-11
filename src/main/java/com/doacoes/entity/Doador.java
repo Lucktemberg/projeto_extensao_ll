@@ -21,6 +21,9 @@ public class Doador {
 
     private String email;
 
+    @Column(length = 1000)
+    private String observacao;
+
     public Doador() {
     }
 
@@ -70,5 +73,13 @@ public class Doador {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getObservacao() {
+        return observacao;
+    }
+
+    public void setObservacao(String observacao) {
+        this.observacao = observacao;
     }
 }

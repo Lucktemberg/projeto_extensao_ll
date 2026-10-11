@@ -34,6 +34,7 @@ public class UsuarioService {
     // AUTENTICAR
     // =====================================================
 
+    @Transactional
     public Usuario autenticar(LoginRequestDTO dto) {
 
         String login = dto.getLogin().trim();
@@ -90,6 +91,8 @@ public class UsuarioService {
     public Usuario salvar(
             UsuarioRequestDTO dto) {
 
+        validarSenhaObrigatoria(dto.getSenha());
+
         validarPerfil(
                 dto.getPerfil()
         );
@@ -127,7 +130,19 @@ public class UsuarioService {
 
     public List<Usuario> listar() {
 
-        return usuarioRepository.findAll();
+        return usuarioRepository.findAllByOrderByNomeAsc();
+    }
+
+    public Usuario buscarPorLogin(String login) {
+        if (login == null || login.isBlank()) {
+            throw new EntityNotFoundException("Usuário não encontrado");
+        }
+
+        return usuarioRepository
+                .findByLoginIgnoreCase(login.trim())
+                .orElseThrow(() ->
+                        new EntityNotFoundException("Usuário não encontrado")
+                );
     }
 
     // =====================================================
@@ -237,14 +252,16 @@ public class UsuarioService {
                         .trim()
         );
 
-        /*
-         * Senha criptografada.
-         */
-        usuario.setSenha(
-                passwordEncoder.encode(
-                        dto.getSenha().trim()
-                )
-        );
+        if (usuario.getId() == null
+                || (dto.getSenha() != null
+                && !dto.getSenha().isBlank())) {
+
+            usuario.setSenha(
+                    passwordEncoder.encode(
+                            dto.getSenha().trim()
+                    )
+            );
+        }
 
         /*
          * Perfil em maiúsculo.
@@ -332,6 +349,14 @@ public class UsuarioService {
 
             throw new IllegalArgumentException(
                     "Perfil inválido. Use ADMIN ou USUARIO"
+            );
+        }
+    }
+
+    private void validarSenhaObrigatoria(String senha) {
+        if (senha == null || senha.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Senha é obrigatória"
             );
         }
     }

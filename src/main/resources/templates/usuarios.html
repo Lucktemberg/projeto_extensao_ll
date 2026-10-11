@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Usuários</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Cadastro de Usuários e Permissões</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -28,6 +21,12 @@
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Novo Usuário</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar usuário..."
+               oninput="filtrarTabela(this, 'tabelaUsuarios')"
+               aria-label="Buscar usuários">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -48,8 +47,10 @@
             </div>
 
             <div>
-                <label>Senha</label>
-                <input type="password" id="senha" placeholder="Senha do usuário">
+                <label for="senha">Senha</label>
+                <input type="password" id="senha"
+                       placeholder="Informe uma senha no novo cadastro">
+                <small class="ajuda-campo">Na edição, deixe em branco para manter a senha atual.</small>
             </div>
 
             <div>
@@ -91,7 +92,7 @@
 
                     <label>
                         <input type="checkbox" value="DOACAO">
-                        Doação
+                        Doação / Campanhas
                     </label>
 
                     <label>
@@ -111,6 +112,14 @@
 
     <section class="card-tabela">
         <table>
+            <colgroup>
+                <col class="col-id">
+                <col>
+                <col>
+                <col class="col-perfil">
+                <col>
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
                 <th>ID</th>
@@ -129,28 +138,12 @@
 </main>
 
 <script>
-    const usuarioLogado = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-    if (!usuarioLogado) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuarioLogado.nome + " • " + usuarioLogado.perfil;
-
-        if (usuarioLogado.perfil !== "ADMIN") {
-            alert("Acesso permitido somente para administradores.");
-            window.location.href = "/menu";
-        }
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
+    const usuarioLogado = JSON.parse(localStorage.getItem("usuarioLogado") || "null");
 
     function novoCadastro() {
         limparFormulario();
         document.getElementById("tituloFormulario").innerText = "Novo Usuário";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
         controlarPermissoes();
     }
 
@@ -203,16 +196,21 @@
                 const tabela = document.getElementById("tabelaUsuarios");
                 tabela.innerHTML = "";
 
+                if (usuarios.length === 0) {
+                    tabelaVazia(tabela, 6, "Nenhum usuário cadastrado ainda.");
+                    return;
+                }
+
                 usuarios.forEach(usuario => {
                     const permissoes = usuario.permissoes ?? [];
 
                     tabela.innerHTML += `
                         <tr>
                             <td>${usuario.id}</td>
-                            <td>${usuario.nome ?? ""}</td>
-                            <td>${usuario.login ?? ""}</td>
-                            <td>${usuario.perfil ?? ""}</td>
-                            <td>${permissoes.length > 0 ? permissoes.join(", ") : "-"}</td>
+                            <td>${textoSeguro(usuario.nome)}</td>
+                            <td>${textoSeguro(usuario.login)}</td>
+                            <td>${textoSeguro(usuario.perfil)}</td>
+                            <td>${textoSeguro(permissoes.length > 0 ? permissoes.join(", ") : "-")}</td>
                             <td>
                                 <button class="btn-tabela btn-azul" onclick="editar(${usuario.id})">Editar</button>
                                 <button class="btn-tabela btn-vermelho" onclick="excluir(${usuario.id})">Excluir</button>
@@ -222,17 +220,23 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar usuários: " + error.message);
+                mostrarErro("Erro ao carregar usuários: " + error.message);
             });
     }
 
     function salvar() {
         const id = document.getElementById("id").value;
+        const senha = document.getElementById("senha").value;
+
+        if (!id && !senha.trim()) {
+            mostrarErro("Informe uma senha para o novo usuário.");
+            return;
+        }
 
         const usuario = {
             nome: document.getElementById("nome").value,
             login: document.getElementById("login").value,
-            senha: document.getElementById("senha").value,
+            senha: senha,
             perfil: document.getElementById("perfil").value,
             permissoes: permissoesSelecionadas()
         };
@@ -249,9 +253,10 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(texto => {
-                        throw new Error(texto || "Erro ao salvar usuário.");
-                    });
+                    return mensagemErro(response, "Erro ao salvar usuário.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
             })
             .then(() => {
@@ -259,7 +264,7 @@
                 carregarUsuarios();
             })
             .catch(error => {
-                alert("Erro ao salvar usuário: " + error.message);
+                mostrarErro("Erro ao salvar usuário: " + error.message);
             });
     }
 
@@ -288,16 +293,16 @@
                 controlarPermissoes();
 
                 document.getElementById("tituloFormulario").innerText = "Editar Usuário";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar usuário: " + error.message);
+                mostrarErro("Erro ao buscar usuário: " + error.message);
             });
     }
 
     function excluir(id) {
         if (usuarioLogado && usuarioLogado.id === id) {
-            alert("Você não pode excluir o usuário que está logado.");
+            mostrarErro("Você não pode excluir o usuário que está logado.");
             return;
         }
 
@@ -316,7 +321,7 @@
                 carregarUsuarios();
             })
             .catch(error => {
-                alert("Erro ao excluir usuário: " + error.message);
+                mostrarErro("Erro ao excluir usuário: " + error.message);
             });
     }
 

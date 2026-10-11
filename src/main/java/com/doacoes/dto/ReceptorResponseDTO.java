@@ -10,6 +10,7 @@ public class ReceptorResponseDTO {
     private String endereco;
     private String telefone;
     private String email;
+    private String observacao;
 
     public ReceptorResponseDTO(Receptor receptor) {
         this.id = receptor.getId();
@@ -18,6 +19,7 @@ public class ReceptorResponseDTO {
         this.endereco = receptor.getEndereco();
         this.telefone = receptor.getTelefone();
         this.email = receptor.getEmail();
+        this.observacao = receptor.getObservacao();
     }
 
     public Long getId() {
@@ -42,5 +44,9 @@ public class ReceptorResponseDTO {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getObservacao() {
+        return observacao;
     }
 }

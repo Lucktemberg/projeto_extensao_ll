@@ -2,7 +2,9 @@ package com.doacoes.service;
 
 import com.doacoes.dto.ReceptorRequestDTO;
 import com.doacoes.entity.Receptor;
+import com.doacoes.repository.DistribuicaoRepository;
 import com.doacoes.repository.ReceptorRepository;
+import com.doacoes.util.Textos;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,11 +15,14 @@ import java.util.List;
 public class ReceptorService {
 
     private final ReceptorRepository receptorRepository;
+    private final DistribuicaoRepository distribuicaoRepository;
 
     public ReceptorService(
-            ReceptorRepository receptorRepository) {
+            ReceptorRepository receptorRepository,
+            DistribuicaoRepository distribuicaoRepository) {
 
         this.receptorRepository = receptorRepository;
+        this.distribuicaoRepository = distribuicaoRepository;
     }
 
     // =====================================================
@@ -28,7 +33,7 @@ public class ReceptorService {
     public Receptor salvar(
             ReceptorRequestDTO dto) {
 
-        validarCpf(dto.getCpf());
+        validarCpf(dto.getCpf(), null);
 
         Receptor receptor =
                 new Receptor();
@@ -49,7 +54,7 @@ public class ReceptorService {
 
     public List<Receptor> listar() {
 
-        return receptorRepository.findAll();
+        return receptorRepository.findAllByOrderByNomeAsc();
     }
 
     // =====================================================
@@ -76,7 +81,7 @@ public class ReceptorService {
             Long id,
             ReceptorRequestDTO dto) {
 
-        validarCpf(dto.getCpf());
+        validarCpf(dto.getCpf(), id);
 
         Receptor receptor =
                 buscarPorId(id);
@@ -100,6 +105,12 @@ public class ReceptorService {
 
         Receptor receptor =
                 buscarPorId(id);
+
+        if (distribuicaoRepository.existsByReceptorId(id)) {
+            throw new IllegalArgumentException(
+                    "Não é possível excluir este receptor porque já existem distribuições vinculadas."
+            );
+        }
 
         receptorRepository.delete(
                 receptor
@@ -142,20 +153,7 @@ public class ReceptorService {
                         .toUpperCase()
         );
 
-        /*
-         * CPF
-         */
-        if (dto.getCpf() != null
-                && !dto.getCpf().isBlank()) {
-
-            receptor.setCpf(
-                    dto.getCpf().trim()
-            );
-
-        } else {
-
-            receptor.setCpf(null);
-        }
+        receptor.setCpf(Textos.cpfDigitos(dto.getCpf()));
 
         /*
          * Endereço
@@ -203,44 +201,33 @@ public class ReceptorService {
 
             receptor.setEmail(null);
         }
+
+        receptor.setObservacao(Textos.opcional(dto.getObservacao()));
     }
 
-    // =====================================================
-    // VALIDAR CPF
-    // =====================================================
-
-    private void validarCpf(String cpf) {
-
-        /*
-         * CPF não é obrigatório.
-         */
-        if (cpf == null
-                || cpf.isBlank()) {
-
+    private void validarCpf(String cpf, Long idAtual) {
+        if (cpf == null || cpf.isBlank()) {
             return;
         }
 
-        /*
-         * Remove pontos, traços etc.
-         *
-         * Exemplo:
-         *
-         * 123.456.789-00
-         *
-         * vira:
-         *
-         * 12345678900
-         */
-        String cpfLimpo =
-                cpf.replaceAll(
-                        "[^0-9]",
-                        ""
-                );
+        String cpfLimpo = Textos.cpfDigitos(cpf);
 
-        if (cpfLimpo.length() != 11) {
-
+        if (cpfLimpo == null || cpfLimpo.length() != 11) {
             throw new IllegalArgumentException(
                     "CPF inválido! Informe 11 dígitos."
+            );
+        }
+
+        boolean duplicado = receptorRepository.findByCpfIsNotNull()
+                .stream()
+                .anyMatch(existente ->
+                        !existente.getId().equals(idAtual)
+                                && Textos.mesmoCpf(existente.getCpf(), cpfLimpo)
+                );
+
+        if (duplicado) {
+            throw new IllegalArgumentException(
+                    "Já existe um receptor cadastrado com este CPF."
             );
         }
     }

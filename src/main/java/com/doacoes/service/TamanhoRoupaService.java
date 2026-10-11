@@ -65,7 +65,7 @@ public class TamanhoRoupaService {
     public List<TamanhoRoupa> listar() {
 
         return tamanhoRoupaRepository
-                .findAll();
+                .findAllByOrderByTamanhoAsc();
     }
 
     // =====================================================

@@ -21,4 +21,8 @@ public interface DoadorRepository extends JpaRepository<Doador, Long> {
                OR LOWER(d.endereco) LIKE LOWER(CONCAT('%', :termo, '%'))
             """)
     List<Doador> pesquisar(@Param("termo") String termo);
+
+    List<Doador> findAllByOrderByNomeAsc();
+
+    List<Doador> findByCpfIsNotNull();
 }

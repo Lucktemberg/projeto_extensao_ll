@@ -33,6 +33,8 @@ public class TipoDoacaoService {
                 dto.getCategoria()
         );
 
+        validarDuplicidade(dto.getNome(), dto.getCategoria(), null);
+
         TipoDoacao tipoDoacao =
                 new TipoDoacao();
 
@@ -53,7 +55,7 @@ public class TipoDoacaoService {
     public List<TipoDoacao> listar() {
 
         return tipoDoacaoRepository
-                .findAll();
+                .findAllByOrderByNomeAsc();
     }
 
     // =====================================================
@@ -84,6 +86,8 @@ public class TipoDoacaoService {
         validarCategoria(
                 dto.getCategoria()
         );
+
+        validarDuplicidade(dto.getNome(), dto.getCategoria(), id);
 
         TipoDoacao tipoDoacao =
                 buscarPorId(id);
@@ -159,6 +163,28 @@ public class TipoDoacaoService {
 
             throw new IllegalArgumentException(
                     "Categoria inválida. Use ALIMENTOS ou VESTUARIO"
+            );
+        }
+    }
+
+    private void validarDuplicidade(String nome, String categoria, Long id) {
+        String nomeFormatado = nome.trim().toUpperCase();
+        String categoriaFormatada = categoria.trim().toUpperCase();
+
+        boolean duplicado = id == null
+                ? tipoDoacaoRepository.existsByNomeIgnoreCaseAndCategoriaIgnoreCase(
+                nomeFormatado,
+                categoriaFormatada
+        )
+                : tipoDoacaoRepository.existsByNomeIgnoreCaseAndCategoriaIgnoreCaseAndIdNot(
+                nomeFormatado,
+                categoriaFormatada,
+                id
+        );
+
+        if (duplicado) {
+            throw new IllegalArgumentException(
+                    "Já existe um tipo de doação com esse nome e categoria"
             );
         }
     }

@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Receptores</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Cadastro de Receptores</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -28,6 +21,12 @@
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Novo Receptor</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar receptor..."
+               oninput="filtrarTabela(this, 'tabelaReceptores')"
+               aria-label="Buscar receptores">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -75,6 +74,14 @@
 
     <section class="card-tabela">
         <table>
+            <colgroup>
+                <col class="col-id">
+                <col>
+                <col class="col-cpf">
+                <col class="col-cpf">
+                <col>
+                <col class="col-acoes">
+            </colgroup>
             <thead>
             <tr>
                 <th>ID</th>
@@ -93,23 +100,10 @@
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
-
     function novoCadastro() {
         limparFormulario();
         document.getElementById("tituloFormulario").innerText = "Novo Receptor";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
     }
 
     function cancelar() {
@@ -134,14 +128,19 @@
                 const tabela = document.getElementById("tabelaReceptores");
                 tabela.innerHTML = "";
 
+                if (receptores.length === 0) {
+                    tabelaVazia(tabela, 6, "Nenhum receptor cadastrado ainda.");
+                    return;
+                }
+
                 receptores.forEach(receptor => {
                     tabela.innerHTML += `
                         <tr>
                             <td>${receptor.id}</td>
-                            <td>${receptor.nome ?? ""}</td>
-                            <td>${receptor.cpf ?? ""}</td>
-                            <td>${receptor.telefone ?? ""}</td>
-                            <td>${receptor.email ?? ""}</td>
+                            <td>${textoSeguro(receptor.nome)}</td>
+                            <td>${textoSeguro(formatarCpf(receptor.cpf))}</td>
+                            <td>${textoSeguro(formatarTelefone(receptor.telefone))}</td>
+                            <td>${textoSeguro(receptor.email)}</td>
                             <td>
                                 <button class="btn-tabela btn-azul" onclick="editar(${receptor.id})">Editar</button>
                                 <button class="btn-tabela btn-vermelho" onclick="excluir(${receptor.id})">Excluir</button>
@@ -151,7 +150,7 @@
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar receptores: " + error.message);
+                mostrarErro("Erro ao carregar receptores: " + error.message);
             });
     }
 
@@ -189,7 +188,7 @@
                 carregarReceptores();
             })
             .catch(error => {
-                alert("Erro ao salvar receptor: " + error.message);
+                mostrarErro("Erro ao salvar receptor: " + error.message);
             });
     }
 
@@ -206,10 +205,10 @@
                 document.getElementById("observacao").value = receptor.observacao ?? "";
 
                 document.getElementById("tituloFormulario").innerText = "Editar Receptor";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar receptor: " + error.message);
+                mostrarErro("Erro ao buscar receptor: " + error.message);
             });
     }
 
@@ -223,13 +222,16 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error("Não foi possível excluir o receptor.");
+                    return mensagemErro(response, "Não foi possível excluir o receptor.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
 
                 carregarReceptores();
             })
             .catch(error => {
-                alert("Erro ao excluir receptor: " + error.message);
+                mostrarErro("Erro ao excluir receptor: " + error.message);
             });
     }
 

@@ -1,23 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Solidário - Estoque</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/sessao.js"></script>
+    <script src="/app.js" defer></script>
 </head>
 <body>
 
-<header class="topo">
-    <div>
-        <h1>SOLIDÁRIO</h1>
-        <p>Controle de Estoque</p>
-    </div>
-
-    <div class="usuario-logado">
-        <span id="nomeUsuario">Usuário</span>
-        <button onclick="voltarMenu()">Voltar ao Menu</button>
-    </div>
-</header>
+<div th:replace="~{fragments/navigation :: appHeader}"></div>
 
 <main class="conteudo">
 
@@ -28,6 +21,12 @@
         </div>
 
         <button class="btn btn-verde" onclick="novoCadastro()">Novo Item</button>
+    </div>
+
+    <div class="barra-lista">
+        <input type="search" placeholder="Buscar item..."
+               oninput="filtrarEstoques(this)"
+               aria-label="Buscar itens de estoque">
     </div>
 
     <section class="card-form" id="formulario" style="display: none;">
@@ -48,7 +47,11 @@
 
             <div class="campo-completo">
                 <label>Categoria</label>
-                <input type="text" id="categoria" placeholder="Ex: ALIMENTOS, VESTUARIO">
+                <select id="categoria">
+                    <option value="">Selecione</option>
+                    <option value="ALIMENTOS">Alimentos</option>
+                    <option value="VESTUARIO">Vestuário</option>
+                </select>
             </div>
         </div>
 
@@ -58,42 +61,15 @@
         </div>
     </section>
 
-    <section class="card-tabela">
-        <table>
-            <thead>
-            <tr>
-                <th>ID</th>
-                <th>Descrição</th>
-                <th>Categoria</th>
-                <th>Quantidade</th>
-                <th>Ações</th>
-            </tr>
-            </thead>
-            <tbody id="tabelaEstoques">
-            </tbody>
-        </table>
-    </section>
+    <div id="listaEstoques"></div>
 
 </main>
 
 <script>
-    const usuario = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-    if (!usuario) {
-        window.location.href = "/login";
-    } else {
-        document.getElementById("nomeUsuario").innerText =
-            usuario.nome + " • " + usuario.perfil;
-    }
-
-    function voltarMenu() {
-        window.location.href = "/menu";
-    }
-
     function novoCadastro() {
         limparFormulario();
         document.getElementById("tituloFormulario").innerText = "Novo Item de Estoque";
-        document.getElementById("formulario").style.display = "block";
+        mostrarFormulario();
     }
 
     function cancelar() {
@@ -108,31 +84,133 @@
         document.getElementById("categoria").value = "";
     }
 
+    function rotuloCategoria(categoria) {
+        const chave = String(categoria ?? "").trim().toUpperCase();
+        if (chave === "ALIMENTOS") {
+            return "Alimentos";
+        }
+        if (chave === "VESTUARIO") {
+            return "Vestuário";
+        }
+        return chave ? chave.charAt(0) + chave.slice(1).toLowerCase() : "Outros";
+    }
+
+    function chaveCategoria(categoria) {
+        const chave = String(categoria ?? "").trim().toUpperCase();
+        return chave || "OUTROS";
+    }
+
+    function linhaEstoque(estoque) {
+        const quantidade = estoque.quantidade ?? 0;
+        const classe = quantidade <= 0 ? "linha-zerada" : "";
+        const selo = quantidade <= 0
+            ? '<span class="selo-zerado">Zerado</span>'
+            : quantidade <= 3
+                ? '<span class="selo-baixo">Baixo</span>'
+                : "";
+
+        return `
+            <tr class="${classe}">
+                <td>${estoque.id}</td>
+                <td>${textoSeguro(estoque.descricao)}</td>
+                <td>${quantidade} ${selo}</td>
+                <td>
+                    <button class="btn-tabela btn-azul" onclick="editar(${estoque.id})">Editar</button>
+                    <button class="btn-tabela btn-vermelho" onclick="excluir(${estoque.id})">Excluir</button>
+                </td>
+            </tr>
+        `;
+    }
+
     function carregarEstoques() {
         fetch("/estoques")
             .then(response => response.json())
             .then(estoques => {
-                const tabela = document.getElementById("tabelaEstoques");
-                tabela.innerHTML = "";
+                const lista = document.getElementById("listaEstoques");
+                lista.innerHTML = "";
 
+                if (estoques.length === 0) {
+                    lista.innerHTML = `
+                        <section class="card-tabela">
+                            <table>
+                                <tbody id="tabelaEstoques"></tbody>
+                            </table>
+                        </section>
+                    `;
+                    tabelaVazia(document.getElementById("tabelaEstoques"), 4, "Nenhum item cadastrado no estoque.");
+                    return;
+                }
+
+                const grupos = new Map();
                 estoques.forEach(estoque => {
-                    tabela.innerHTML += `
-                        <tr>
-                            <td>${estoque.id}</td>
-                            <td>${estoque.descricao ?? ""}</td>
-                            <td>${estoque.categoria ?? ""}</td>
-                            <td>${estoque.quantidade ?? 0}</td>
-                            <td>
-                                <button class="btn-tabela btn-azul" onclick="editar(${estoque.id})">Editar</button>
-                                <button class="btn-tabela btn-vermelho" onclick="excluir(${estoque.id})">Excluir</button>
-                            </td>
-                        </tr>
+                    const chave = chaveCategoria(estoque.categoria);
+                    if (!grupos.has(chave)) {
+                        grupos.set(chave, []);
+                    }
+                    grupos.get(chave).push(estoque);
+                });
+
+                const ordem = ["ALIMENTOS", "VESTUARIO"];
+                const chaves = [
+                    ...ordem.filter(chave => grupos.has(chave)),
+                    ...[...grupos.keys()].filter(chave => !ordem.includes(chave)).sort()
+                ];
+
+                chaves.forEach(chave => {
+                    const itens = grupos.get(chave);
+                    const tabelaId = "tabelaEstoque-" + chave;
+                    lista.innerHTML += `
+                        <section class="secao-estoque" data-categoria="${textoSeguro(chave)}">
+                            <div class="cabecalho-secao">
+                                <h3>${textoSeguro(rotuloCategoria(chave))}</h3>
+                                <span>${itens.length} item(ns)</span>
+                            </div>
+                            <section class="card-tabela">
+                                <table>
+                                    <colgroup>
+                                        <col class="col-id">
+                                        <col>
+                                        <col class="col-qtd">
+                                        <col class="col-acoes">
+                                    </colgroup>
+                                    <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Descrição</th>
+                                        <th>Quantidade</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="${tabelaId}">
+                                        ${itens.map(linhaEstoque).join("")}
+                                    </tbody>
+                                </table>
+                            </section>
+                        </section>
                     `;
                 });
             })
             .catch(error => {
-                alert("Erro ao carregar estoque: " + error.message);
+                mostrarErro("Erro ao carregar estoque: " + error.message);
             });
+    }
+
+    function filtrarEstoques(campo) {
+        const termo = String(campo.value ?? "").trim().toLowerCase();
+
+        document.querySelectorAll(".secao-estoque").forEach(secao => {
+            let visiveis = 0;
+
+            secao.querySelectorAll("tbody tr").forEach(linha => {
+                const mostra = termo === "" || linha.textContent.toLowerCase().includes(termo);
+                linha.hidden = !mostra;
+                if (mostra) {
+                    visiveis += 1;
+                }
+            });
+
+            secao.hidden = visiveis === 0;
+        });
     }
 
     function salvar() {
@@ -156,9 +234,10 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(texto => {
-                        throw new Error(texto || "Erro ao salvar item de estoque.");
-                    });
+                    return mensagemErro(response, "Erro ao salvar item de estoque.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
             })
             .then(() => {
@@ -166,7 +245,7 @@
                 carregarEstoques();
             })
             .catch(error => {
-                alert("Erro ao salvar item de estoque: " + error.message);
+                mostrarErro("Erro ao salvar item de estoque: " + error.message);
             });
     }
 
@@ -180,10 +259,10 @@
                 document.getElementById("categoria").value = estoque.categoria ?? "";
 
                 document.getElementById("tituloFormulario").innerText = "Editar Item de Estoque";
-                document.getElementById("formulario").style.display = "block";
+                mostrarFormulario();
             })
             .catch(error => {
-                alert("Erro ao buscar item de estoque: " + error.message);
+                mostrarErro("Erro ao buscar item de estoque: " + error.message);
             });
     }
 
@@ -197,13 +276,16 @@
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error("Não foi possível excluir o item de estoque.");
+                    return mensagemErro(response, "Não foi possível excluir o item de estoque.")
+                        .then(texto => {
+                            throw new Error(texto);
+                        });
                 }
 
                 carregarEstoques();
             })
             .catch(error => {
-                alert("Erro ao excluir item de estoque: " + error.message);
+                mostrarErro("Erro ao excluir item de estoque: " + error.message);
             });
     }
 

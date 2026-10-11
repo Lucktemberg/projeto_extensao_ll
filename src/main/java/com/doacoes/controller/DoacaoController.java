@@ -1,7 +1,11 @@
 package com.doacoes.controller;
 
+import com.doacoes.dto.AcompanhamentoDoacaoDTO;
+import com.doacoes.dto.DestinoEntregaDTO;
+import com.doacoes.dto.DistribuirDoacaoRequestDTO;
 import com.doacoes.dto.DoacaoRequestDTO;
 import com.doacoes.dto.DoacaoResponseDTO;
+import com.doacoes.dto.DoacaoStatusRequestDTO;
 import com.doacoes.entity.Doacao;
 import com.doacoes.service.DoacaoService;
 import jakarta.validation.Valid;
@@ -35,61 +39,70 @@ public class DoacaoController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(
-                        new DoacaoResponseDTO(doacao)
-                );
+                .body(doacaoService.toResponse(doacao));
     }
 
     // READ - LISTAR
 
     @GetMapping
     public ResponseEntity<List<DoacaoResponseDTO>> listar() {
+        return ResponseEntity.ok(doacaoService.listarRespostas());
+    }
 
-        List<DoacaoResponseDTO> doacoes =
-                doacaoService.listar()
-                        .stream()
-                        .map(DoacaoResponseDTO::new)
-                        .toList();
+    @GetMapping("/destinos")
+    public ResponseEntity<List<DestinoEntregaDTO>> destinos() {
+        return ResponseEntity.ok(doacaoService.listarDestinos());
+    }
 
-        return ResponseEntity.ok(doacoes);
+    @PostMapping("/{id:\\d+}/distribuir")
+    public ResponseEntity<DoacaoResponseDTO> distribuir(
+            @PathVariable Long id,
+            @Valid @RequestBody DistribuirDoacaoRequestDTO dto) {
+
+        Doacao doacao = doacaoService.distribuir(id, dto);
+        return ResponseEntity.ok(doacaoService.toResponse(doacao));
+    }
+
+    @GetMapping("/codigo/{codigo}")
+    public ResponseEntity<AcompanhamentoDoacaoDTO> acompanhar(
+            @PathVariable String codigo) {
+
+        return ResponseEntity.ok(doacaoService.acompanhar(codigo));
     }
 
     // READ - BUSCAR ID
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<DoacaoResponseDTO> buscarPorId(
             @PathVariable Long id) {
 
-        Doacao doacao =
-                doacaoService.buscarPorId(id);
-
-        return ResponseEntity.ok(
-                new DoacaoResponseDTO(doacao)
-        );
+        return ResponseEntity.ok(doacaoService.buscarResposta(id));
     }
 
     // UPDATE
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<DoacaoResponseDTO> atualizar(
             @PathVariable Long id,
             @Valid
             @RequestBody DoacaoRequestDTO dto) {
 
-        Doacao doacao =
-                doacaoService.atualizar(
-                        id,
-                        dto
-                );
+        Doacao doacao = doacaoService.atualizar(id, dto);
+        return ResponseEntity.ok(doacaoService.toResponse(doacao));
+    }
 
-        return ResponseEntity.ok(
-                new DoacaoResponseDTO(doacao)
-        );
+    @PatchMapping("/{id:\\d+}/status")
+    public ResponseEntity<DoacaoResponseDTO> atualizarStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody DoacaoStatusRequestDTO dto) {
+
+        Doacao doacao = doacaoService.atualizarStatus(id, dto);
+        return ResponseEntity.ok(doacaoService.toResponse(doacao));
     }
 
     // DELETE
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deletar(
             @PathVariable Long id) {
 
@@ -107,12 +120,6 @@ public class DoacaoController {
             @RequestParam(required = false)
             String termo) {
 
-        List<DoacaoResponseDTO> doacoes =
-                doacaoService.pesquisar(termo)
-                        .stream()
-                        .map(DoacaoResponseDTO::new)
-                        .toList();
-
-        return ResponseEntity.ok(doacoes);
+        return ResponseEntity.ok(doacaoService.pesquisarRespostas(termo));
     }
 }
